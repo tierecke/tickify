@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "330678366815",
+    "project_id": "tickify-db",
+    "storage_bucket": "tickify-db.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:330678366815:android:e7a99f693e21b300fc61ea",
+        "android_client_info": {
+          "package_name": "com.example.tickify"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTbiyref1uKdcYsrYKC0aUjmI2ZujIJs8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:330678366815:android:c796d6fb5f975e4efc61ea",
+        "android_client_info": {
+          "package_name": "net.tierecke.tickify"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTbiyref1uKdcYsrYKC0aUjmI2ZujIJs8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
