@@ -65,6 +65,71 @@ class FirebaseRepository {
     // For sharing: add .where('sharedWith', arrayContains: user.uid) in the future
   }
 
+  /// Synchronizes local lists with cloud storage
+  /// Returns a list of all lists after synchronization
+  Future<List<UserList>> synchronizeLists(List<UserList> localLists) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No authenticated user found');
+
+    // Get all lists from Firestore
+    final cloudSnapshot =
+        await _listsCollection.where('ownerId', isEqualTo: user.uid).get();
+
+    final cloudLists = cloudSnapshot.docs
+        .map((doc) => UserList.fromJson(doc.data() as Map<String, dynamic>))
+        .toList();
+
+    // Create maps for easier lookup
+    final localMap = {for (var list in localLists) list.id: list};
+    final cloudMap = {for (var list in cloudLists) list.id: list};
+
+    // Lists to be updated in Firestore (local changes)
+    final listsToUpdate = <UserList>[];
+    // Lists to be added to local storage (new cloud lists)
+    final listsToAdd = <UserList>[];
+    // Lists to be updated in local storage (newer cloud versions)
+    final listsToUpdateLocal = <UserList>[];
+
+    // Check for local changes that need to be synced to cloud
+    for (var localList in localLists) {
+      final cloudList = cloudMap[localList.id];
+      if (cloudList == null) {
+        // List only exists locally, add to cloud
+        listsToUpdate.add(localList);
+      } else if (localList.lastModifiedAt.isAfter(cloudList.lastModifiedAt)) {
+        // Local version is newer, update cloud
+        listsToUpdate.add(localList);
+      } else if (cloudList.lastModifiedAt.isAfter(localList.lastModifiedAt)) {
+        // Cloud version is newer, update local
+        listsToUpdateLocal.add(cloudList);
+      }
+    }
+
+    // Check for cloud lists that need to be added to local storage
+    for (var cloudList in cloudLists) {
+      if (!localMap.containsKey(cloudList.id)) {
+        listsToAdd.add(cloudList);
+      }
+    }
+
+    // Update cloud with local changes
+    for (var list in listsToUpdate) {
+      await _listsCollection.doc(list.id).set(list.toJson());
+    }
+
+    // Return combined list of all lists, with newer versions taking precedence
+    final updatedLocalLists = localLists.map((localList) {
+      final cloudList = cloudMap[localList.id];
+      if (cloudList != null &&
+          cloudList.lastModifiedAt.isAfter(localList.lastModifiedAt)) {
+        return cloudList;
+      }
+      return localList;
+    }).toList();
+
+    return [...updatedLocalLists, ...listsToAdd];
+  }
+
   /// Gets a single list by ID
   Future<UserList?> getList(String listId) async {
     final user = _auth.currentUser;

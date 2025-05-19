@@ -11,6 +11,15 @@ class LocalRepository {
     // Remove any existing list with the same id
     lists.removeWhere((l) => l.id == list.id);
     lists.add(list);
+    await _saveAllLists(lists);
+  }
+
+  Future<void> saveAllLists(List<UserList> lists) async {
+    await _saveAllLists(lists);
+  }
+
+  Future<void> _saveAllLists(List<UserList> lists) async {
+    final prefs = await SharedPreferences.getInstance();
     final jsonString = jsonEncode(lists.map((l) => l.toJson()).toList());
     await prefs.setString(_listsKey, jsonString);
   }
@@ -27,7 +36,6 @@ class LocalRepository {
     final prefs = await SharedPreferences.getInstance();
     final lists = await loadLists();
     lists.removeWhere((l) => l.id == listId);
-    final jsonString = jsonEncode(lists.map((l) => l.toJson()).toList());
-    await prefs.setString(_listsKey, jsonString);
+    await _saveAllLists(lists);
   }
 }

@@ -16,10 +16,10 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   bool isWriteMode = true;
 
   Future<void> _handleCreateList() async {
@@ -38,6 +38,64 @@ class _HomePageState extends State<HomePage> {
       await firebaseRepository.saveList(newList);
     }
     setState(() {}); // Triggers rebuild to show the new list
+  }
+
+  Future<void> handleLogin() async {
+    final firebaseRepository = FirebaseRepository();
+    final localRepository = LocalRepository();
+
+    // Get local lists before login
+    final localLists = await localRepository.loadLists();
+
+    // Show login dialog
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (context) => LoginDialog(
+        firebaseRepository: firebaseRepository,
+      ),
+    );
+
+    // After successful login, synchronize lists
+    if (firebaseRepository.currentUser != null) {
+      try {
+        // Synchronize lists between local and cloud storage
+        final synchronizedLists =
+            await firebaseRepository.synchronizeLists(localLists);
+        // Save synchronized lists to local storage
+        await localRepository.saveAllLists(synchronizedLists);
+
+        // If there are lists and no list is currently open, switch to the most recently opened list
+        if (synchronizedLists.isNotEmpty) {
+          // Sort lists by lastOpenedAt to find the most recent
+          synchronizedLists
+              .sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+          final mostRecentList = synchronizedLists.first;
+
+          // Update the lastOpenedAt timestamp
+          mostRecentList.updateLastOpened();
+          await localRepository.saveList(mostRecentList);
+          if (firebaseRepository.currentUser != null) {
+            await firebaseRepository.saveList(mostRecentList);
+          }
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Successfully logged in and synchronized lists')),
+          );
+          // Trigger rebuild to show the most recent list
+          setState(() {});
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error synchronizing lists: $e')),
+          );
+        }
+      }
+    }
   }
 
   @override

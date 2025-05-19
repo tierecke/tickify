@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/about_dialog.dart';
 import '../widgets/login_dialog.dart';
 import '../repositories/firebase_repository.dart';
+import '../pages/home_page.dart';
 
 /// Model representing a navigation menu item with its associated icon and action
 class NavigationItem {
@@ -51,12 +52,10 @@ List<NavigationItem> getNavigationItems(BuildContext context) {
           }
         } else {
           if (context.mounted) {
-            showDialog(
-              context: context,
-              builder: (context) => LoginDialog(
-                firebaseRepository: firebaseRepository,
-              ),
-            );
+            final homePage = context.findAncestorStateOfType<HomePageState>();
+            if (homePage != null) {
+              await homePage.handleLogin();
+            }
           }
         }
       },
