@@ -20,6 +20,12 @@ class UserList extends BaseItem {
   /// Archived lists are typically hidden from the main view but preserved for future use
   bool isArchived;
 
+  /// Timestamp when the list was last opened
+  DateTime lastOpenedAt;
+
+  /// Timestamp when the list was last modified
+  DateTime lastModifiedAt;
+
   /// Creates a new [UserList] with the given properties.
   ///
   /// Required parameters:
@@ -30,7 +36,9 @@ class UserList extends BaseItem {
   /// Optional parameters:
   /// * [items]: Initial list of items (defaults to empty list)
   /// * [isArchived]: Whether list is archived (defaults to false)
-  /// * Timestamp parameters inherited from [BaseItem]
+  /// * [createdAt]: Creation timestamp (defaults to current time)
+  /// * [lastOpenedAt]: Last opened timestamp (defaults to current time)
+  /// * [lastModifiedAt]: Last modified timestamp (defaults to current time)
   UserList({
     required String name,
     required String icon,
@@ -38,25 +46,42 @@ class UserList extends BaseItem {
     this.items = const [],
     this.isArchived = false,
     DateTime? createdAt,
-  }) : super(
+    DateTime? lastOpenedAt,
+    DateTime? lastModifiedAt,
+  })  : lastOpenedAt = lastOpenedAt ?? DateTime.now(),
+        lastModifiedAt = lastModifiedAt ?? DateTime.now(),
+        super(
           name: name,
           icon: icon,
           createdAt: createdAt,
         );
 
+  /// Updates the last opened timestamp to the current time
+  void updateLastOpened() {
+    lastOpenedAt = DateTime.now();
+  }
+
+  /// Updates the last modified timestamp to the current time
+  void updateLastModified() {
+    lastModifiedAt = DateTime.now();
+  }
+
   /// Adds a new item to the list
   void addItem(ListItem item) {
     items.add(item);
+    updateLastModified();
   }
 
   /// Removes an item from the list by its ID
   void removeItem(String itemId) {
     items.removeWhere((item) => item.id == itemId);
+    updateLastModified();
   }
 
   /// Toggles the archived status of the list
   void toggleArchived() {
     isArchived = !isArchived;
+    updateLastModified();
   }
 
   /// Calculates the percentage of completed items in the list
@@ -109,6 +134,8 @@ class UserList extends BaseItem {
         'id': id,
         'items': items.map((item) => item.toJson()).toList(),
         'isArchived': isArchived,
+        'lastOpenedAt': lastOpenedAt.toIso8601String(),
+        'lastModifiedAt': lastModifiedAt.toIso8601String(),
       };
 
   /// Creates a [UserList] from a JSON map, including all its items
@@ -121,6 +148,8 @@ class UserList extends BaseItem {
       id: json['id'] as String,
       isArchived: json['isArchived'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      lastOpenedAt: DateTime.parse(json['lastOpenedAt'] as String),
+      lastModifiedAt: DateTime.parse(json['lastModifiedAt'] as String),
     );
 
     if (json['items'] != null) {

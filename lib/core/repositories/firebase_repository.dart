@@ -28,6 +28,9 @@ class FirebaseRepository {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No authenticated user found');
 
+    // Update timestamps before saving
+    list.updateLastModified();
+    list.updateLastOpened();
     await _listsCollection(user.uid).doc(list.id).set(list.toJson());
   }
 
@@ -44,6 +47,8 @@ class FirebaseRepository {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No authenticated user found');
 
+    // Update modification timestamp before updating
+    list.updateLastModified();
     await _listsCollection(user.uid).doc(list.id).update(list.toJson());
   }
 
@@ -75,9 +80,11 @@ class FirebaseRepository {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No authenticated user found');
 
-    await _listsCollection(user.uid).doc(listId).update({
-      'lastAccessedAt': FieldValue.serverTimestamp(),
-    });
+    final list = await getList(listId);
+    if (list != null) {
+      list.updateLastOpened();
+      await _listsCollection(user.uid).doc(listId).update(list.toJson());
+    }
   }
 
   /// Signs in a user with Google
