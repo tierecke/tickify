@@ -451,9 +451,34 @@ class _ListDetailPageState extends State<_ListDetailPage> {
           // TODO: Render the list items as a tree with categories and subcategories
           Expanded(
             child: Center(
-              child: Text(
-                'No items yet. Add items to your list!',
-                style: Theme.of(context).textTheme.bodyLarge,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'No items yet. Add items to your list!',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 56,
+                    width: 56,
+                    child: FloatingActionButton(
+                      onPressed: widget.isWriteMode
+                          ? () {
+                              // TODO: Implement add item functionality
+                            }
+                          : null,
+                      shape: const CircleBorder(),
+                      child: const Text(
+                        '+',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
