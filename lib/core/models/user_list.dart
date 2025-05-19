@@ -43,12 +43,13 @@ class UserList extends BaseItem {
     required String name,
     required String icon,
     required this.id,
-    this.items = const [],
+    List<ListItem>? items,
     this.isArchived = false,
     DateTime? createdAt,
     DateTime? lastOpenedAt,
     DateTime? lastModifiedAt,
-  })  : lastOpenedAt = lastOpenedAt ?? DateTime.now(),
+  })  : items = items ?? <ListItem>[],
+        lastOpenedAt = lastOpenedAt ?? DateTime.now(),
         lastModifiedAt = lastModifiedAt ?? DateTime.now(),
         super(
           name: name,
@@ -142,24 +143,18 @@ class UserList extends BaseItem {
   ///
   /// This factory constructor is used when deserializing stored data
   factory UserList.fromJson(Map<String, dynamic> json) {
-    var list = UserList(
+    final items = (json['items'] as List?)
+        ?.map((item) => ListItem.fromJson(item as Map<String, dynamic>))
+        .toList();
+    return UserList(
       name: json['name'] as String,
       icon: json['icon'] as String,
       id: json['id'] as String,
+      items: items,
       isArchived: json['isArchived'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
       lastOpenedAt: DateTime.parse(json['lastOpenedAt'] as String),
       lastModifiedAt: DateTime.parse(json['lastModifiedAt'] as String),
     );
-
-    if (json['items'] != null) {
-      list.items.addAll(
-        (json['items'] as List)
-            .map((item) => ListItem.fromJson(item as Map<String, dynamic>))
-            .toList(),
-      );
-    }
-
-    return list;
   }
 }
