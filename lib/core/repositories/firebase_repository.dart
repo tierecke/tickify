@@ -192,10 +192,18 @@ class FirebaseRepository {
 
   /// Signs out the current user
   Future<void> signOut() async {
-    await Future.wait([
-      _auth.signOut(),
-      _googleSignIn.signOut(),
-    ]);
+    try {
+      // Sign out from both Firebase and Google
+      await Future.wait([
+        _auth.signOut(),
+        _googleSignIn.signOut(),
+      ]);
+    } catch (e) {
+      // Even if there's an error, we want to ensure the user is signed out
+      await _auth.signOut();
+      await _googleSignIn.signOut();
+      throw Exception('Error during sign out: $e');
+    }
   }
 
   /// Gets the current authenticated user

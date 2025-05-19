@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/platform_navigation.dart';
 import '../widgets/empty_lists_state.dart';
 import '../widgets/login_dialog.dart';
@@ -21,6 +23,24 @@ class HomePage extends StatefulWidget {
 
 class HomePageState extends State<HomePage> {
   bool isWriteMode = true;
+  StreamSubscription<User?>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to auth state changes
+    _authSubscription = FirebaseRepository().authStateChanges.listen((user) {
+      if (mounted) {
+        setState(() {}); // Rebuild when auth state changes
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
 
   Future<void> _handleCreateList() async {
     final firebaseRepository = FirebaseRepository();
