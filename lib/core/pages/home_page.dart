@@ -572,6 +572,122 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     );
   }
 
+  Widget _buildReorderableItem(BuildContext context, int index) {
+    if (index == _currentList.items.length) {
+      return AddItemTile(
+        key: ValueKey('add_item_tile'),
+        onTap: _addNewItem,
+        isWriteMode: widget.isWriteMode,
+      );
+    }
+    final item = _currentList.items[index];
+    return ReorderableDragStartListener(
+      key: ValueKey(item.id),
+      index: index,
+      enabled: widget.isWriteMode,
+      child: ListTile(
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.more_vert),
+            const SizedBox(width: 8),
+            EmojiIcon(
+              emoji: item.icon,
+              size: 20,
+              editable: widget.isWriteMode,
+              onEmojiSelected: (newEmoji) async {
+                setState(() {
+                  final updatedItem = ListItem(
+                    name: item.name,
+                    icon: newEmoji,
+                    id: item.id,
+                    parentId: item.parentId,
+                    isDone: item.isDone,
+                    isArchived: item.isArchived,
+                    children: item.children,
+                    createdAt: item.createdAt,
+                  );
+                  final updatedList = UserList(
+                    name: _currentList.name,
+                    icon: _currentList.icon,
+                    id: _currentList.id,
+                    items: _currentList.items
+                        .map((i) => i.id == item.id ? updatedItem : i)
+                        .toList(),
+                    ownerId: _currentList.ownerId,
+                    shared: _currentList.shared,
+                    isArchived: _currentList.isArchived,
+                    createdAt: _currentList.createdAt,
+                    lastOpenedAt: _currentList.lastOpenedAt,
+                    lastModifiedAt: DateTime.now(),
+                    hasUnsynchronizedChanges: true,
+                  );
+                  _currentList = updatedList;
+                });
+                await _saveLocally();
+              },
+            ),
+          ],
+        ),
+        title: EditableTextField(
+          text: item.name,
+          isEditable: widget.isWriteMode,
+          style: const TextStyle(fontSize: 16),
+          onSubmitted: (newName) async {
+            setState(() {
+              final updatedItem = ListItem(
+                name: newName,
+                icon: item.icon,
+                id: item.id,
+                parentId: item.parentId,
+                isDone: item.isDone,
+                isArchived: item.isArchived,
+                children: item.children,
+                createdAt: item.createdAt,
+              );
+              final updatedList = UserList(
+                name: _currentList.name,
+                icon: _currentList.icon,
+                id: _currentList.id,
+                items: _currentList.items
+                    .map((i) => i.id == item.id ? updatedItem : i)
+                    .toList(),
+                ownerId: _currentList.ownerId,
+                shared: _currentList.shared,
+                isArchived: _currentList.isArchived,
+                createdAt: _currentList.createdAt,
+                lastOpenedAt: _currentList.lastOpenedAt,
+                lastModifiedAt: DateTime.now(),
+                hasUnsynchronizedChanges: true,
+              );
+              _currentList = updatedList;
+            });
+            await _saveLocally();
+          },
+        ),
+        trailing: widget.isWriteMode
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      item.isDone ? Icons.check_circle : Icons.circle_outlined,
+                    ),
+                    onPressed: () async {
+                      setState(() {
+                        item.toggleDone();
+                        _currentList.updateLastModified();
+                      });
+                      await _saveLocally();
+                    },
+                  ),
+                ],
+              )
+            : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -734,125 +850,25 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : ReorderableListView.builder(
                     itemCount: _currentList.items.length +
                         1, // Add 1 for the AddItemTile
-                    itemBuilder: (context, index) {
-                      // If this is the last item, show the AddItemTile
-                      if (index == _currentList.items.length) {
-                        return AddItemTile(
-                          onTap: _addNewItem,
-                          isWriteMode: widget.isWriteMode,
-                        );
+                    onReorder: (oldIndex, newIndex) async {
+                      if (oldIndex == _currentList.items.length ||
+                          newIndex > _currentList.items.length) return;
+                      setState(() {
+                        if (newIndex > oldIndex) newIndex--;
+                        final item = _currentList.items.removeAt(oldIndex);
+                        _currentList.items.insert(newIndex, item);
+                        _currentList.updateLastModified();
+                      });
+                      await _saveLocally();
+                      if (widget.onListChanged != null) {
+                        widget.onListChanged!(_currentList);
                       }
-
-                      final item = _currentList.items[index];
-                      return ListTile(
-                        leading: EmojiIcon(
-                          emoji: item.icon,
-                          size: 20,
-                          editable: widget.isWriteMode,
-                          onEmojiSelected: (newEmoji) async {
-                            setState(() {
-                              // Create a new item with the updated emoji
-                              final updatedItem = ListItem(
-                                name: item.name,
-                                icon: newEmoji,
-                                id: item.id,
-                                parentId: item.parentId,
-                                isDone: item.isDone,
-                                isArchived: item.isArchived,
-                                children: item.children,
-                                createdAt: item.createdAt,
-                              );
-
-                              // Create a new list with the updated item
-                              final updatedList = UserList(
-                                name: _currentList.name,
-                                icon: _currentList.icon,
-                                id: _currentList.id,
-                                items: _currentList.items
-                                    .map((i) =>
-                                        i.id == item.id ? updatedItem : i)
-                                    .toList(),
-                                ownerId: _currentList.ownerId,
-                                shared: _currentList.shared,
-                                isArchived: _currentList.isArchived,
-                                createdAt: _currentList.createdAt,
-                                lastOpenedAt: _currentList.lastOpenedAt,
-                                lastModifiedAt: DateTime.now(),
-                                hasUnsynchronizedChanges: true,
-                              );
-
-                              _currentList = updatedList;
-                            });
-                            await _saveLocally();
-                          },
-                        ),
-                        title: EditableTextField(
-                          text: item.name,
-                          isEditable: widget.isWriteMode,
-                          style: const TextStyle(fontSize: 16),
-                          onSubmitted: (newName) async {
-                            setState(() {
-                              // Create a new item with the updated name
-                              final updatedItem = ListItem(
-                                name: newName,
-                                icon: item.icon,
-                                id: item.id,
-                                parentId: item.parentId,
-                                isDone: item.isDone,
-                                isArchived: item.isArchived,
-                                children: item.children,
-                                createdAt: item.createdAt,
-                              );
-
-                              // Create a new list with the updated item
-                              final updatedList = UserList(
-                                name: _currentList.name,
-                                icon: _currentList.icon,
-                                id: _currentList.id,
-                                items: _currentList.items
-                                    .map((i) =>
-                                        i.id == item.id ? updatedItem : i)
-                                    .toList(),
-                                ownerId: _currentList.ownerId,
-                                shared: _currentList.shared,
-                                isArchived: _currentList.isArchived,
-                                createdAt: _currentList.createdAt,
-                                lastOpenedAt: _currentList.lastOpenedAt,
-                                lastModifiedAt: DateTime.now(),
-                                hasUnsynchronizedChanges: true,
-                              );
-
-                              _currentList = updatedList;
-                            });
-                            await _saveLocally();
-                          },
-                        ),
-                        trailing: widget.isWriteMode
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      item.isDone
-                                          ? Icons.check_circle
-                                          : Icons.circle_outlined,
-                                    ),
-                                    onPressed: () async {
-                                      setState(() {
-                                        item.toggleDone();
-                                        _currentList.updateLastModified();
-                                      });
-                                      await _saveLocally();
-                                    },
-                                  ),
-                                ],
-                              )
-                            : null,
-                      );
                     },
+                    buildDefaultDragHandles: false,
+                    itemBuilder: _buildReorderableItem,
                   ),
           ),
         ],
