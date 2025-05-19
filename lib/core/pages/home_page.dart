@@ -93,22 +93,7 @@ class HomePageState extends State<HomePage> {
             }
           } else {
             // If we don't have a local version, add the cloud version
-            // Create a new instance with the cloud data
-            final newList = UserList(
-              name: cloudList.name,
-              icon: cloudList.icon,
-              id: cloudList.id,
-              items: List<ListItem>.from(cloudList.items),
-              ownerId: cloudList.ownerId,
-              shared: List<SharedUser>.from(cloudList.shared),
-              isArchived: cloudList.isArchived,
-              createdAt: cloudList.createdAt,
-              lastOpenedAt: cloudList.lastOpenedAt,
-              lastModifiedAt: cloudList.lastModifiedAt,
-              hasUnsynchronizedChanges:
-                  false, // Cloud lists are always synchronized
-            );
-            lists.add(newList);
+            lists.add(cloudList);
           }
         }
 
@@ -413,6 +398,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   bool _isAddingNewItem = false;
   String _newItemText = '';
   String _newItemEmoji = '📝';
+  bool _isSubmittingNewItem = false;
 
   @override
   void initState() {
@@ -442,31 +428,24 @@ class _ListDetailPageState extends State<_ListDetailPage> {
       // Save to SharedPreferences
       final localRepository = LocalRepository();
       print(
-          'Before save - List ID: ${_currentList.id}, Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
+          'Before save - List ID: ${_currentList.id}, Items count: ${_currentList.items.length}');
+      print(
+          'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
 
-      // Create a new instance to ensure all changes are captured
-      final listToSave = UserList(
-        name: _currentList.name,
-        icon: _currentList.icon,
-        id: _currentList.id,
-        items: List<ListItem>.from(_currentList.items),
-        ownerId: _currentList.ownerId,
-        shared: List<SharedUser>.from(_currentList.shared),
-        isArchived: _currentList.isArchived,
-        createdAt: _currentList.createdAt,
-        lastOpenedAt: _currentList.lastOpenedAt,
-        lastModifiedAt: DateTime.now(),
-        hasUnsynchronizedChanges: _currentList.hasUnsynchronizedChanges,
-      );
-
-      await localRepository.saveList(listToSave);
+      // Save the current list directly
+      await localRepository.saveList(_currentList);
 
       // Verify the save
       final savedList = await localRepository.loadList(_currentList.id);
       print(
-          'After save - List ID: ${savedList?.id}, Has unsynchronized changes: ${savedList?.hasUnsynchronizedChanges}');
+          'After save - List ID: ${savedList?.id}, Items count: ${savedList?.items.length}');
+      print(
+          'Has unsynchronized changes: ${savedList?.hasUnsynchronizedChanges}');
 
       if (savedList != null) {
+        if (savedList.items.length != _currentList.items.length) {
+          throw Exception('Item count mismatch after save');
+        }
         setState(() {
           _currentList = savedList;
         });
@@ -531,48 +510,56 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   }
 
   Future<void> _submitNewItem() async {
-    if (_newItemText.trim().isEmpty) {
+    if (_isSubmittingNewItem) return;
+    _isSubmittingNewItem = true;
+    try {
+      if (_newItemText.trim().isEmpty) {
+        setState(() {
+          _isAddingNewItem = false;
+        });
+        return;
+      }
+
+      // Create new item
+      final newItem = ListItem(
+        name: _newItemText.trim(),
+        icon: _newItemEmoji,
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+      );
+
+      print('Adding new item: ${newItem.name} with icon: ${newItem.icon}');
+
+      // Create a new list instance with the updated items
+      final updatedList = UserList(
+        name: _currentList.name,
+        icon: _currentList.icon,
+        id: _currentList.id,
+        items: [..._currentList.items, newItem],
+        ownerId: _currentList.ownerId,
+        shared: _currentList.shared,
+        isArchived: _currentList.isArchived,
+        createdAt: _currentList.createdAt,
+        lastOpenedAt: _currentList.lastOpenedAt,
+        lastModifiedAt: DateTime.now(),
+        hasUnsynchronizedChanges: true,
+      );
+
       setState(() {
+        _currentList = updatedList;
         _isAddingNewItem = false;
+        _newItemText = '';
+        _newItemEmoji = '📝';
       });
-      return;
+
+      print('Current list items count: ${_currentList.items.length}');
+      print(
+          'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
+
+      // Save to local storage
+      await _saveLocally();
+    } finally {
+      _isSubmittingNewItem = false;
     }
-
-    // Create new item
-    final newItem = ListItem(
-      name: _newItemText.trim(),
-      icon: _newItemEmoji,
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-    );
-
-    print('Adding new item: ${newItem.name} with icon: ${newItem.icon}');
-
-    // Create a new list with the updated items
-    final updatedList = UserList(
-      name: _currentList.name,
-      icon: _currentList.icon,
-      id: _currentList.id,
-      items: [..._currentList.items, newItem],
-      ownerId: _currentList.ownerId,
-      shared: _currentList.shared,
-      isArchived: _currentList.isArchived,
-      createdAt: _currentList.createdAt,
-      lastOpenedAt: _currentList.lastOpenedAt,
-      lastModifiedAt: DateTime.now(),
-      hasUnsynchronizedChanges: true,
-    );
-
-    // Update the current list
-    setState(() {
-      _currentList = updatedList;
-      _isAddingNewItem = false;
-    });
-
-    print('Current list items count: ${_currentList.items.length}');
-    print(
-        'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
-
-    await _saveLocally();
   }
 
   Future<void> _pickNewItemEmoji() async {
@@ -660,7 +647,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                           shared: List<SharedUser>.from(_currentList.shared),
                           isArchived: _currentList.isArchived,
                           createdAt: _currentList.createdAt,
-                          lastOpenedAt: _currentList.lastOpenedAt,
+                          lastOpenedAt: DateTime.now(),
                           lastModifiedAt: DateTime.now(),
                           hasUnsynchronizedChanges: false,
                         );
@@ -668,12 +655,10 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                         // Save to Firebase
                         await firebaseRepository.saveList(listToSync);
 
-                        // Update local state
+                        // Update local state and save to local storage
                         setState(() {
                           _currentList = listToSync;
                         });
-
-                        // Save to local storage
                         await _saveLocally();
 
                         if (mounted) {
@@ -720,9 +705,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                       autofocus: true,
                       style: const TextStyle(fontSize: 16),
                       onSubmitted: (value) {
-                        setState(() {
-                          _newItemText = value;
-                        });
+                        _newItemText = value;
                         _submitNewItem();
                       },
                     ),

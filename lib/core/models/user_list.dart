@@ -205,12 +205,20 @@ class UserList extends BaseItem {
   /// This factory constructor is used when deserializing stored data
   factory UserList.fromJson(Map<String, dynamic> json) {
     try {
-      print('Parsing JSON for list: ${json['id']}');
-      print('JSON data: $json');
+      print('Parsing JSON for list: \\${json['id']}');
+      print('JSON data: \\${json}');
 
-      final items = (json['items'] as List<dynamic>?)
+      final itemsJson = json['items'] as List<dynamic>?;
+      print('Raw items JSON: \\${itemsJson}');
+      final items = itemsJson
           ?.map((item) => ListItem.fromJson(item as Map<String, dynamic>))
           .toList();
+      print('Deserialized items count: \\${items?.length}');
+      if (items != null) {
+        for (var i = 0; i < items.length; i++) {
+          print('Item \\${i}: \\${items[i].toJson()}');
+        }
+      }
       final shared = (json['shared'] as List<dynamic>?)
           ?.map((s) => SharedUser.fromJson(s as Map<String, dynamic>))
           .toList();
@@ -218,7 +226,7 @@ class UserList extends BaseItem {
       // Explicitly handle hasUnsynchronizedChanges
       final hasUnsynchronizedChanges =
           json['hasUnsynchronizedChanges'] as bool?;
-      print('Parsed hasUnsynchronizedChanges: $hasUnsynchronizedChanges');
+      print('Parsed hasUnsynchronizedChanges: \\${hasUnsynchronizedChanges}');
 
       final list = UserList(
         name: json['name'] as String,
@@ -235,11 +243,11 @@ class UserList extends BaseItem {
       );
 
       print(
-          'Created list ${list.id} with hasUnsynchronizedChanges: ${list.hasUnsynchronizedChanges}');
+          'Created list \\${list.id} with items count: \\${list.items.length}');
       return list;
     } catch (e) {
-      print('Error parsing UserList from JSON: $e');
-      print('JSON data: $json');
+      print('Error parsing UserList from JSON: \\${e}');
+      print('JSON data: \\${json}');
       rethrow;
     }
   }

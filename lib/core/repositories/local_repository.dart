@@ -11,6 +11,7 @@ class LocalRepository {
       print('Saving list ${list.id} to SharedPreferences');
       print(
           'List has unsynchronized changes: ${list.hasUnsynchronizedChanges}');
+      print('List items count before save: ${list.items.length}');
 
       final prefs = await SharedPreferences.getInstance();
       final lists = await loadLists();
@@ -18,21 +19,20 @@ class LocalRepository {
       // Find and update the list
       final index = lists.indexWhere((l) => l.id == list.id);
       if (index != -1) {
-        // Create a new instance to ensure all changes are captured
-        final updatedList = UserList(
+        // Create a new instance to ensure we don't have any reference issues
+        lists[index] = UserList(
           name: list.name,
           icon: list.icon,
           id: list.id,
-          items: List<ListItem>.from(list.items),
+          items: list.items, // Use the items directly from the input list
           ownerId: list.ownerId,
-          shared: List<SharedUser>.from(list.shared),
+          shared: list.shared,
           isArchived: list.isArchived,
           createdAt: list.createdAt,
           lastOpenedAt: list.lastOpenedAt,
           lastModifiedAt: list.lastModifiedAt,
           hasUnsynchronizedChanges: list.hasUnsynchronizedChanges,
         );
-        lists[index] = updatedList;
       } else {
         lists.add(list);
       }
@@ -56,10 +56,16 @@ class LocalRepository {
 
       final savedList = savedLists.firstWhere((l) => l.id == list.id);
       print(
-          'Verified save - List ${savedList.id} has unsynchronized changes: ${savedList.hasUnsynchronizedChanges}');
+          'Verified save - List ${savedList.id} has ${savedList.items.length} items');
+      print(
+          'Verified save - List has unsynchronized changes: ${savedList.hasUnsynchronizedChanges}');
 
       if (savedList.hasUnsynchronizedChanges != list.hasUnsynchronizedChanges) {
         throw Exception('Sync state mismatch after save');
+      }
+
+      if (savedList.items.length != list.items.length) {
+        throw Exception('Item count mismatch after save');
       }
     } catch (e) {
       print('Error saving list to SharedPreferences: $e');

@@ -31,26 +31,13 @@ class FirebaseRepository {
       list.ownerId = user.uid;
     }
 
-    // Create a copy of the list to save to Firebase
-    final listToSave = UserList(
-      name: list.name,
-      icon: list.icon,
-      id: list.id,
-      items: List<ListItem>.from(list.items),
-      ownerId: list.ownerId,
-      shared: List<SharedUser>.from(list.shared),
-      isArchived: list.isArchived,
-      createdAt: list.createdAt,
-      lastOpenedAt: DateTime.now(),
-      lastModifiedAt: DateTime.now(),
-      hasUnsynchronizedChanges: false, // Always false in Firebase
-    );
+    print('Saving list ${list.id} to Firebase');
+    print('List has unsynchronized changes: ${list.hasUnsynchronizedChanges}');
 
-    print('Saving list ${listToSave.id} to Firebase');
-    print(
-        'List has unsynchronized changes: ${listToSave.hasUnsynchronizedChanges}');
-
-    await _listsCollection.doc(listToSave.id).set(listToSave.toJson());
+    // Use set with merge option to prevent overwriting other fields
+    await _listsCollection
+        .doc(list.id)
+        .set(list.toJson(), SetOptions(merge: true));
   }
 
   /// Deletes a list from Firestore
