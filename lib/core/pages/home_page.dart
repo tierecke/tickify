@@ -10,10 +10,17 @@ import '../models/user_list.dart';
 
 /// Main screen of the application with platform-adaptive navigation
 /// Renders differently on iOS and Android while maintaining consistent functionality
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
-  void _handleCreateList(BuildContext context) async {
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool isWriteMode = true;
+
+  Future<void> _handleCreateList() async {
     final firebaseRepository = FirebaseRepository();
     final localRepository = LocalRepository();
     final user = firebaseRepository.currentUser;
@@ -28,11 +35,7 @@ class HomePage extends StatelessWidget {
     } else {
       await firebaseRepository.saveList(newList);
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => _ListDetailPage(list: newList),
-      ),
-    );
+    setState(() {}); // Triggers rebuild to show the new list
   }
 
   @override
@@ -40,6 +43,7 @@ class HomePage extends StatelessWidget {
     const platformNav = PlatformNavigation();
     final firebaseRepository = FirebaseRepository();
 
+    UserList? recentList;
     Widget buildBody() {
       if (firebaseRepository.currentUser == null) {
         // Not logged in, load lists from local storage
@@ -55,11 +59,19 @@ class HomePage extends StatelessWidget {
             final lists = snapshot.data!;
             if (lists.isEmpty) {
               return EmptyListsState(
-                onCreateList: () => _handleCreateList(context),
+                onCreateList: _handleCreateList,
               );
             }
-            // TODO: Implement list grid/list view for local lists
-            return const Center(child: Text('Your lists will appear here'));
+            // Find the most recently opened list
+            lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+            recentList = lists.first;
+            return _ListDetailPage(
+              list: recentList!,
+              isWriteMode: isWriteMode,
+              onToggleWriteMode: () =>
+                  setState(() => isWriteMode = !isWriteMode),
+              showBackButton: false,
+            );
           },
         );
       } else {
@@ -76,11 +88,19 @@ class HomePage extends StatelessWidget {
             final lists = snapshot.data!;
             if (lists.isEmpty) {
               return EmptyListsState(
-                onCreateList: () => _handleCreateList(context),
+                onCreateList: _handleCreateList,
               );
             }
-            // TODO: Implement list grid/list view for Firestore lists
-            return const Center(child: Text('Your lists will appear here'));
+            // Find the most recently opened list
+            lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+            recentList = lists.first;
+            return _ListDetailPage(
+              list: recentList!,
+              isWriteMode: isWriteMode,
+              onToggleWriteMode: () =>
+                  setState(() => isWriteMode = !isWriteMode),
+              showBackButton: false,
+            );
           },
         );
       }
@@ -105,6 +125,14 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tickify'),
+        actions: [
+          IconButton(
+            icon: Icon(isWriteMode ? Icons.edit : Icons.visibility),
+            onPressed: () => setState(() => isWriteMode = !isWriteMode),
+            tooltip:
+                isWriteMode ? 'Switch to read-only' : 'Switch to write mode',
+          ),
+        ],
       ),
       drawer: platformNav,
       body: buildBody(),
@@ -114,80 +142,76 @@ class HomePage extends StatelessWidget {
 
 class _ListDetailPage extends StatefulWidget {
   final UserList list;
-  const _ListDetailPage({required this.list});
+  final bool isWriteMode;
+  final VoidCallback onToggleWriteMode;
+  final bool showBackButton;
+  const _ListDetailPage({
+    required this.list,
+    required this.isWriteMode,
+    required this.onToggleWriteMode,
+    this.showBackButton = true,
+  });
 
   @override
   State<_ListDetailPage> createState() => _ListDetailPageState();
 }
 
 class _ListDetailPageState extends State<_ListDetailPage> {
-  bool isWriteMode = true;
   bool showArchived = false;
 
   @override
   Widget build(BuildContext context) {
     final list = widget.list;
-    return Scaffold(
-      appBar: AppBar(
-        actions: [
-          IconButton(
-            icon: Icon(isWriteMode ? Icons.visibility : Icons.edit),
-            onPressed: () => setState(() => isWriteMode = !isWriteMode),
-            tooltip:
-                isWriteMode ? 'Switch to read-only' : 'Switch to write mode',
-          ),
-          if (isWriteMode)
-            IconButton(
-              icon:
-                  Icon(showArchived ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => showArchived = !showArchived),
-              tooltip:
-                  showArchived ? 'Hide archived items' : 'Show archived items',
-            ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  list.icon,
-                  style: const TextStyle(fontSize: 40),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    list.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 32,
-                    ),
-                  ),
-                ),
-                if (isWriteMode)
-                  IconButton(
-                    icon: const Icon(Icons.edit),
-                    onPressed: () {
-                      // TODO: Implement edit dialog
-                    },
-                  ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            // TODO: Render the list items as a tree with categories and subcategories
-            Expanded(
-              child: Center(
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                list.icon,
+                style: const TextStyle(fontSize: 40),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Text(
-                  'No items yet. Add items to your list!',
-                  style: Theme.of(context).textTheme.bodyLarge,
+                  list.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 32,
+                  ),
                 ),
               ),
+              if (widget.isWriteMode) ...[
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () {
+                    // TODO: Implement edit dialog
+                  },
+                ),
+                IconButton(
+                  icon: Icon(
+                      showArchived ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => showArchived = !showArchived),
+                  tooltip: showArchived
+                      ? 'Hide archived items'
+                      : 'Show archived items',
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 32),
+          // TODO: Render the list items as a tree with categories and subcategories
+          Expanded(
+            child: Center(
+              child: Text(
+                'No items yet. Add items to your list!',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
