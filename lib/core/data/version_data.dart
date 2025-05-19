@@ -2,7 +2,7 @@
 
 class VersionData {
   static const String versionNumber = '0.1';
-  static const int buildNumber = 5;
+  static const int buildNumber = 6;
   static get appVersionString =>
       versionNumber + (buildNumber > 1 ? 'b$buildNumber' : '');
 

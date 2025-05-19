@@ -8,6 +8,23 @@ import 'list_item.dart';
 /// * Tracking completion status
 /// * Managing archived status
 /// * Calculating completion statistics
+class SharedUser {
+  final String userId;
+  final String permission; // e.g. 'read', 'write'
+
+  SharedUser({required this.userId, required this.permission});
+
+  Map<String, dynamic> toJson() => {
+        'userId': userId,
+        'permission': permission,
+      };
+
+  factory SharedUser.fromJson(Map<String, dynamic> json) => SharedUser(
+        userId: json['userId'] as String,
+        permission: json['permission'] as String,
+      );
+}
+
 class UserList extends BaseItem {
   /// Unique identifier for the list
   final String id;
@@ -27,11 +44,8 @@ class UserList extends BaseItem {
   /// The owner user ID (nullable for local lists)
   String? ownerId;
 
-  /// List of user IDs this list is shared with (future use)
-  final List<String> sharedWith;
-
-  /// Map of user IDs to permissions (future use)
-  final Map<String, String> permissions;
+  /// List of shared users (userId + permission)
+  final List<SharedUser> shared;
 
   /// Whether the list is archived
   /// Archived lists are typically hidden from the main view but preserved for future use
@@ -53,8 +67,7 @@ class UserList extends BaseItem {
   /// Optional parameters:
   /// * [items]: Initial list of items (defaults to empty list)
   /// * [ownerId]: The owner user ID (nullable for local lists)
-  /// * [sharedWith]: List of user IDs this list is shared with (future use)
-  /// * [permissions]: Map of user IDs to permissions (future use)
+  /// * [shared]: List of shared users (userId + permission)
   /// * [isArchived]: Whether list is archived (defaults to false)
   /// * [createdAt]: Creation timestamp (defaults to current time)
   /// * [lastOpenedAt]: Last opened timestamp (defaults to current time)
@@ -65,15 +78,13 @@ class UserList extends BaseItem {
     required this.id,
     List<ListItem>? items,
     this.ownerId,
-    List<String>? sharedWith,
-    Map<String, String>? permissions,
+    List<SharedUser>? shared,
     this.isArchived = false,
     DateTime? createdAt,
     DateTime? lastOpenedAt,
     DateTime? lastModifiedAt,
   })  : items = items ?? <ListItem>[],
-        sharedWith = sharedWith ?? <String>[],
-        permissions = permissions ?? <String, String>{},
+        shared = shared ?? <SharedUser>[],
         lastOpenedAt = lastOpenedAt ?? DateTime.now(),
         lastModifiedAt = lastModifiedAt ?? DateTime.now(),
         super(
@@ -160,8 +171,7 @@ class UserList extends BaseItem {
         'id': id,
         'items': items.map((item) => item.toJson()).toList(),
         'ownerId': ownerId,
-        'sharedWith': sharedWith,
-        'permissions': permissions,
+        'shared': shared.map((s) => s.toJson()).toList(),
         'isArchived': isArchived,
         'lastOpenedAt': lastOpenedAt.toIso8601String(),
         'lastModifiedAt': lastModifiedAt.toIso8601String(),
@@ -174,16 +184,16 @@ class UserList extends BaseItem {
     final items = (json['items'] as List?)
         ?.map((item) => ListItem.fromJson(item as Map<String, dynamic>))
         .toList();
+    final shared = (json['shared'] as List?)
+        ?.map((s) => SharedUser.fromJson(s as Map<String, dynamic>))
+        .toList();
     return UserList(
       name: json['name'] as String,
       icon: json['icon'] as String,
       id: json['id'] as String,
       items: items,
       ownerId: json['ownerId'] as String?,
-      sharedWith:
-          (json['sharedWith'] as List?)?.map((e) => e as String).toList(),
-      permissions: (json['permissions'] as Map?)
-          ?.map((k, v) => MapEntry(k as String, v as String)),
+      shared: shared,
       isArchived: json['isArchived'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
       lastOpenedAt: DateTime.parse(json['lastOpenedAt'] as String),
