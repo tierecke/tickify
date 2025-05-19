@@ -35,12 +35,59 @@ class HomePageState extends State<HomePage> {
         setState(() {}); // Rebuild when auth state changes
       }
     });
+    // Load initial list
+    _loadRecentList();
+  }
+
+  Future<void> _loadRecentList() async {
+    final firebaseRepository = FirebaseRepository();
+    final user = firebaseRepository.currentUser;
+    List<UserList> lists;
+
+    if (user == null) {
+      // Load from local storage
+      lists = await LocalRepository().loadLists();
+    } else {
+      // Load from Firestore
+      lists = await firebaseRepository.streamLists().first;
+    }
+
+    if (lists.isNotEmpty) {
+      // Sort lists by lastOpenedAt to find the most recent
+      lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+      if (mounted) {
+        setState(() {
+          recentList = lists.first;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
     _authSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _handleModeToggle() async {
+    if (recentList != null) {
+      // Save any pending changes before switching modes
+      final localRepository = LocalRepository();
+      await localRepository.saveList(recentList!);
+
+      // Reload the list to ensure we have the latest state
+      final updatedList = await localRepository.loadList(recentList!.id);
+      if (updatedList != null) {
+        setState(() {
+          recentList = updatedList;
+          isWriteMode = !isWriteMode;
+        });
+      } else {
+        setState(() => isWriteMode = !isWriteMode);
+      }
+    } else {
+      setState(() => isWriteMode = !isWriteMode);
+    }
   }
 
   Future<void> _handleCreateList() async {
@@ -58,7 +105,9 @@ class HomePageState extends State<HomePage> {
     } else {
       await firebaseRepository.saveList(newList);
     }
-    setState(() {}); // Triggers rebuild to show the new list
+    setState(() {
+      recentList = newList;
+    });
   }
 
   Future<void> handleLogin() async {
@@ -138,21 +187,22 @@ class HomePageState extends State<HomePage> {
               return const Center(child: CircularProgressIndicator());
             }
             final lists = snapshot.data!;
-            print('Local lists count: ${lists.length}'); // Debug print
             if (lists.isEmpty) {
               return EmptyListsState(
                 onCreateList: _handleCreateList,
               );
             }
-            // Find the most recently opened list
-            lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
-            recentList = lists.first;
-            print('Recent list set to: ${recentList?.name}'); // Debug print
+            if (recentList == null) {
+              // Find the most recently opened list
+              lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+              setState(() {
+                recentList = lists.first;
+              });
+            }
             return _ListDetailPage(
               list: recentList!,
               isWriteMode: isWriteMode,
-              onToggleWriteMode: () =>
-                  setState(() => isWriteMode = !isWriteMode),
+              onToggleWriteMode: _handleModeToggle,
               showBackButton: false,
             );
           },
@@ -170,20 +220,22 @@ class HomePageState extends State<HomePage> {
             return const Center(child: CircularProgressIndicator());
           }
           final lists = snapshot.data!;
-          print('Firestore lists count: ${lists.length}'); // Debug print
           if (lists.isEmpty) {
             return EmptyListsState(
               onCreateList: _handleCreateList,
             );
           }
-          // Find the most recently opened list
-          lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
-          recentList = lists.first;
-          print('Recent list set to: ${recentList?.name}'); // Debug print
+          if (recentList == null) {
+            // Find the most recently opened list
+            lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+            setState(() {
+              recentList = lists.first;
+            });
+          }
           return _ListDetailPage(
             list: recentList!,
             isWriteMode: isWriteMode,
-            onToggleWriteMode: () => setState(() => isWriteMode = !isWriteMode),
+            onToggleWriteMode: _handleModeToggle,
             showBackButton: false,
           );
         },
@@ -199,6 +251,14 @@ class HomePageState extends State<HomePage> {
             child: const Icon(CupertinoIcons.line_horizontal_3),
             onPressed: () => platformNav.showPlatformNavigation(context),
           ),
+          trailing: recentList != null
+              ? CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  child: Icon(
+                      isWriteMode ? CupertinoIcons.pencil : CupertinoIcons.eye),
+                  onPressed: _handleModeToggle,
+                )
+              : null,
         ),
         child: SafeArea(
           child: buildBody(),
@@ -213,7 +273,7 @@ class HomePageState extends State<HomePage> {
           if (recentList != null) // Only show toggle when there is a list open
             IconButton(
               icon: Icon(isWriteMode ? Icons.edit : Icons.visibility),
-              onPressed: () => setState(() => isWriteMode = !isWriteMode),
+              onPressed: _handleModeToggle,
               tooltip:
                   isWriteMode ? 'Switch to read-only' : 'Switch to write mode',
             ),
@@ -247,11 +307,22 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   late TextEditingController _nameController;
   bool showEmojiPicker = false;
   bool hasUnsynchronizedChanges = false;
+  late UserList _currentList;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.list.name);
+    _currentList = widget.list;
+    _nameController = TextEditingController(text: _currentList.name);
+  }
+
+  @override
+  void didUpdateWidget(_ListDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.list != oldWidget.list) {
+      _currentList = widget.list;
+      _nameController.text = _currentList.name;
+    }
   }
 
   @override
@@ -266,17 +337,23 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     });
     // Save to SharedPreferences
     final localRepository = LocalRepository();
-    await localRepository.saveList(widget.list);
+    await localRepository.saveList(_currentList);
+  }
+
+  Future<void> _handleModeToggle() async {
+    // Save any pending changes before switching modes
+    await _saveLocally();
+    widget.onToggleWriteMode();
   }
 
   Future<void> _submitName() async {
     setState(() {
-      widget.list.name = _nameController.text.trim().substring(
+      _currentList.name = _nameController.text.trim().substring(
           0,
           _nameController.text.trim().length > 30
               ? 30
               : _nameController.text.trim().length);
-      widget.list.updateLastModified();
+      _currentList.updateLastModified();
       isEditingName = false;
     });
     await _saveLocally();
@@ -290,8 +367,8 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         return EmojiPicker(
           onEmojiSelected: (category, emoji) async {
             setState(() {
-              widget.list.icon = emoji.emoji;
-              widget.list.updateLastModified();
+              _currentList.icon = emoji.emoji;
+              _currentList.updateLastModified();
             });
             await _saveLocally();
             Navigator.of(context).pop();
@@ -303,7 +380,6 @@ class _ListDetailPageState extends State<_ListDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final list = widget.list;
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -316,22 +392,22 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 0, right: 8),
                   child: Text(
-                    list.icon,
+                    _currentList.icon,
                     style: const TextStyle(fontSize: 40),
                   ),
                 ),
               ),
               Expanded(
                 child: EditableTextField(
-                  text: list.name,
+                  text: _currentList.name,
                   isEditable: widget.isWriteMode,
                   maxLength: 30,
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 32),
                   onSubmitted: (newName) async {
                     setState(() {
-                      list.name = newName;
-                      list.updateLastModified();
+                      _currentList.name = newName;
+                      _currentList.updateLastModified();
                     });
                     await _saveLocally();
                   },
@@ -353,7 +429,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                           // Save to Firestore
                           final firebaseRepository = FirebaseRepository();
                           if (firebaseRepository.currentUser != null) {
-                            await firebaseRepository.saveList(list);
+                            await firebaseRepository.saveList(_currentList);
                             setState(() {
                               hasUnsynchronizedChanges = false;
                             });

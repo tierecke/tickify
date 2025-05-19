@@ -32,6 +32,15 @@ class LocalRepository {
     return jsonList.map((json) => UserList.fromJson(json)).toList();
   }
 
+  Future<UserList?> loadList(String listId) async {
+    final lists = await loadLists();
+    try {
+      return lists.firstWhere((list) => list.id == listId);
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<void> deleteList(String listId) async {
     final prefs = await SharedPreferences.getInstance();
     final lists = await loadLists();
