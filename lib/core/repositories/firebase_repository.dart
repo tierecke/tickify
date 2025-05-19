@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_list.dart';
 import '../models/list_item.dart';
 
@@ -7,6 +8,7 @@ import '../models/list_item.dart';
 class FirebaseRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // Collection references
   CollectionReference get _usersCollection => _firestore.collection('users');
@@ -78,32 +80,50 @@ class FirebaseRepository {
     });
   }
 
-  /// Signs in a user with email and password
-  Future<UserCredential> signInWithEmailAndPassword(
-      String email, String password) async {
-    return await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-  }
+  /// Signs in a user with Google
+  Future<UserCredential> signInWithGoogle() async {
+    try {
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-  /// Creates a new user with email and password
-  Future<UserCredential> createUserWithEmailAndPassword(
-      String email, String password) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+      if (googleUser == null) {
+        throw Exception('Google sign in aborted');
+      }
 
-    // Create the user document in Firestore
-    await createUserDocument(credential.user!);
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
-    return credential;
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      final userCredential = await _auth.signInWithCredential(credential);
+
+      // Create user document if it doesn't exist
+      if (userCredential.user != null) {
+        final userDoc =
+            await _usersCollection.doc(userCredential.user!.uid).get();
+        if (!userDoc.exists) {
+          await createUserDocument(userCredential.user!);
+        }
+      }
+
+      return userCredential;
+    } catch (e) {
+      throw Exception('Failed to sign in with Google: $e');
+    }
   }
 
   /// Signs out the current user
   Future<void> signOut() async {
-    await _auth.signOut();
+    await Future.wait([
+      _auth.signOut(),
+      _googleSignIn.signOut(),
+    ]);
   }
 
   /// Gets the current authenticated user

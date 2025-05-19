@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>330678366815-g7hn9d5fisat8ka0vvjhhbjilo0qsdqg.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.330678366815-g7hn9d5fisat8ka0vvjhhbjilo0qsdqg</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>330678366815-n7h0d58db9bh9a47aofinkmc9vc11vum.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyAk__ILvsMcme_WRB_o46jvlI8jEAm4doc</string>
 	<key>GCM_SENDER_ID</key>
@@ -9,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.tickify</string>
+	<string>net.tierecke.tickify</string>
 	<key>PROJECT_ID</key>
 	<string>tickify-db</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:330678366815:ios:3855fdfb7c1160e4fc61ea</string>
+	<string>1:330678366815:ios:13f97cd871708541fc61ea</string>
 </dict>
 </plist>
