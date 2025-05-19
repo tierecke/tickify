@@ -15,6 +15,7 @@ import '../widgets/editable_text_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../widgets/emoji_icon.dart';
+import '../widgets/add_item_tile.dart';
 
 /// Main screen of the application with platform-adaptive navigation
 /// Renders differently on iOS and Android while maintaining consistent functionality
@@ -648,15 +649,46 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                   onPressed: () async {
                     final firebaseRepository = FirebaseRepository();
                     if (firebaseRepository.currentUser != null) {
-                      await firebaseRepository.saveList(_currentList);
-                      setState(() {
-                        _currentList.markAsSynchronized();
-                      });
-                      await _saveLocally(); // Save the synchronized state
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('List synchronized')),
+                      try {
+                        // Create a new instance with all current changes
+                        final listToSync = UserList(
+                          name: _currentList.name,
+                          icon: _currentList.icon,
+                          id: _currentList.id,
+                          items: List<ListItem>.from(_currentList.items),
+                          ownerId: firebaseRepository.currentUser!.uid,
+                          shared: List<SharedUser>.from(_currentList.shared),
+                          isArchived: _currentList.isArchived,
+                          createdAt: _currentList.createdAt,
+                          lastOpenedAt: _currentList.lastOpenedAt,
+                          lastModifiedAt: DateTime.now(),
+                          hasUnsynchronizedChanges: false,
                         );
+
+                        // Save to Firebase
+                        await firebaseRepository.saveList(listToSync);
+
+                        // Update local state
+                        setState(() {
+                          _currentList = listToSync;
+                        });
+
+                        // Save to local storage
+                        await _saveLocally();
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('List synchronized')),
+                          );
+                        }
+                      } catch (e) {
+                        print('Error syncing list: $e');
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text('Error synchronizing list: $e')),
+                          );
+                        }
                       }
                     }
                   },
@@ -729,8 +761,17 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: _currentList.items.length,
+                    itemCount: _currentList.items.length +
+                        1, // Add 1 for the AddItemTile
                     itemBuilder: (context, index) {
+                      // If this is the last item, show the AddItemTile
+                      if (index == _currentList.items.length) {
+                        return AddItemTile(
+                          onTap: _addNewItem,
+                          isWriteMode: widget.isWriteMode,
+                        );
+                      }
+
                       final item = _currentList.items[index];
                       print('Building item $index: ${item.name}');
                       return ListTile(

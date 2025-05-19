@@ -41,14 +41,10 @@ class FirebaseRepository {
       shared: List<SharedUser>.from(list.shared),
       isArchived: list.isArchived,
       createdAt: list.createdAt,
-      lastOpenedAt: list.lastOpenedAt,
+      lastOpenedAt: DateTime.now(),
       lastModifiedAt: DateTime.now(),
       hasUnsynchronizedChanges: false, // Always false in Firebase
     );
-
-    // Update timestamps before saving
-    listToSave.updateLastModified();
-    listToSave.updateLastOpened();
 
     print('Saving list ${listToSave.id} to Firebase');
     print(
