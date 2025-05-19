@@ -7,6 +7,7 @@ import '../widgets/login_dialog.dart';
 import '../repositories/firebase_repository.dart';
 import '../repositories/local_repository.dart';
 import '../models/user_list.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 
 /// Main screen of the application with platform-adaptive navigation
 /// Renders differently on iOS and Android while maintaining consistent functionality
@@ -160,6 +161,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   bool showArchived = false;
   bool isEditingName = false;
   late TextEditingController _nameController;
+  bool showEmojiPicker = false;
 
   @override
   void initState() {
@@ -189,6 +191,32 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     }
   }
 
+  Future<void> _pickEmoji() async {
+    if (!widget.isWriteMode) return;
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return EmojiPicker(
+          onEmojiSelected: (category, emoji) async {
+            setState(() {
+              widget.list.icon = emoji.emoji;
+              widget.list.updateLastModified();
+            });
+            // Save to SharedPreferences
+            final localRepository = LocalRepository();
+            await localRepository.saveList(widget.list);
+            // If logged in, also save to Firestore
+            final firebaseRepository = FirebaseRepository();
+            if (firebaseRepository.currentUser != null) {
+              await firebaseRepository.saveList(widget.list);
+            }
+            Navigator.of(context).pop();
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final list = widget.list;
@@ -199,11 +227,17 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         children: [
           Row(
             children: [
-              Text(
-                list.icon,
-                style: const TextStyle(fontSize: 40),
-              ),
-              const SizedBox(width: 12),
+              if (widget.isWriteMode)
+                GestureDetector(
+                  onTap: _pickEmoji,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 0, right: 8),
+                    child: Text(
+                      list.icon,
+                      style: const TextStyle(fontSize: 40),
+                    ),
+                  ),
+                ),
               Expanded(
                 child: widget.isWriteMode
                     ? GestureDetector(
