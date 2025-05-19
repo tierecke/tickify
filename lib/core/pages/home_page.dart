@@ -8,6 +8,7 @@ import '../repositories/firebase_repository.dart';
 import '../repositories/local_repository.dart';
 import '../models/user_list.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import '../widgets/editable_text_field.dart';
 
 /// Main screen of the application with platform-adaptive navigation
 /// Renders differently on iOS and Android while maintaining consistent functionality
@@ -127,12 +128,13 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('Tickify'),
         actions: [
-          IconButton(
-            icon: Icon(isWriteMode ? Icons.edit : Icons.visibility),
-            onPressed: () => setState(() => isWriteMode = !isWriteMode),
-            tooltip:
-                isWriteMode ? 'Switch to read-only' : 'Switch to write mode',
-          ),
+          if (recentList != null) // Only show toggle when there is a list open
+            IconButton(
+              icon: Icon(isWriteMode ? Icons.edit : Icons.visibility),
+              onPressed: () => setState(() => isWriteMode = !isWriteMode),
+              tooltip:
+                  isWriteMode ? 'Switch to read-only' : 'Switch to write mode',
+            ),
         ],
       ),
       drawer: platformNav,
@@ -177,7 +179,11 @@ class _ListDetailPageState extends State<_ListDetailPage> {
 
   Future<void> _submitName() async {
     setState(() {
-      widget.list.name = _nameController.text.trim();
+      widget.list.name = _nameController.text.trim().substring(
+          0,
+          _nameController.text.trim().length > 30
+              ? 30
+              : _nameController.text.trim().length);
       widget.list.updateLastModified();
       isEditingName = false;
     });
@@ -239,53 +245,27 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                   ),
                 ),
               Expanded(
-                child: widget.isWriteMode
-                    ? GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            isEditingName = true;
-                            _nameController.text = list.name;
-                          });
-                        },
-                        child: isEditingName
-                            ? Focus(
-                                onFocusChange: (hasFocus) {
-                                  if (!hasFocus) _submitName();
-                                },
-                                child: TextField(
-                                  controller: _nameController,
-                                  autofocus: true,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 32,
-                                  ),
-                                  decoration: const InputDecoration(
-                                    isCollapsed: true,
-                                    border: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    disabledBorder: InputBorder.none,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                  onSubmitted: (_) => _submitName(),
-                                  textInputAction: TextInputAction.done,
-                                ),
-                              )
-                            : Text(
-                                list.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 32,
-                                ),
-                              ),
-                      )
-                    : Text(
-                        list.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 32,
-                        ),
-                      ),
+                child: EditableTextField(
+                  text: list.name,
+                  isEditable: widget.isWriteMode,
+                  maxLength: 30,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 32),
+                  onSubmitted: (newName) async {
+                    setState(() {
+                      list.name = newName;
+                      list.updateLastModified();
+                    });
+                    // Save to SharedPreferences
+                    final localRepository = LocalRepository();
+                    await localRepository.saveList(list);
+                    // If logged in, also save to Firestore
+                    final firebaseRepository = FirebaseRepository();
+                    if (firebaseRepository.currentUser != null) {
+                      await firebaseRepository.saveList(list);
+                    }
+                  },
+                ),
               ),
               if (widget.isWriteMode) ...[
                 IconButton(
