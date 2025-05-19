@@ -108,15 +108,11 @@ class UserList extends BaseItem {
   void updateLastModified() {
     lastModifiedAt = DateTime.now();
     hasUnsynchronizedChanges = true;
-    print(
-        'List ${id} marked as modified. hasUnsynchronizedChanges: $hasUnsynchronizedChanges');
   }
 
   /// Marks the list as synchronized
   void markAsSynchronized() {
     hasUnsynchronizedChanges = false;
-    print(
-        'List ${id} marked as synchronized. hasUnsynchronizedChanges: $hasUnsynchronizedChanges');
   }
 
   /// Adds a new item to the list
@@ -194,9 +190,6 @@ class UserList extends BaseItem {
       'lastModifiedAt': lastModifiedAt.toIso8601String(),
       'hasUnsynchronizedChanges': hasUnsynchronizedChanges,
     };
-    print(
-        'Converting list ${id} to JSON. hasUnsynchronizedChanges: $hasUnsynchronizedChanges');
-    print('JSON data: $json');
     return json;
   }
 
@@ -205,29 +198,15 @@ class UserList extends BaseItem {
   /// This factory constructor is used when deserializing stored data
   factory UserList.fromJson(Map<String, dynamic> json) {
     try {
-      print('Parsing JSON for list: \\${json['id']}');
-      print('JSON data: \\${json}');
-
       final itemsJson = json['items'] as List<dynamic>?;
-      print('Raw items JSON: \\${itemsJson}');
       final items = itemsJson
           ?.map((item) => ListItem.fromJson(item as Map<String, dynamic>))
           .toList();
-      print('Deserialized items count: \\${items?.length}');
-      if (items != null) {
-        for (var i = 0; i < items.length; i++) {
-          print('Item \\${i}: \\${items[i].toJson()}');
-        }
-      }
       final shared = (json['shared'] as List<dynamic>?)
           ?.map((s) => SharedUser.fromJson(s as Map<String, dynamic>))
           .toList();
-
-      // Explicitly handle hasUnsynchronizedChanges
       final hasUnsynchronizedChanges =
           json['hasUnsynchronizedChanges'] as bool?;
-      print('Parsed hasUnsynchronizedChanges: \\${hasUnsynchronizedChanges}');
-
       final list = UserList(
         name: json['name'] as String,
         icon: json['icon'] as String,
@@ -241,13 +220,8 @@ class UserList extends BaseItem {
         lastModifiedAt: DateTime.parse(json['lastModifiedAt'] as String),
         hasUnsynchronizedChanges: hasUnsynchronizedChanges,
       );
-
-      print(
-          'Created list \\${list.id} with items count: \\${list.items.length}');
       return list;
     } catch (e) {
-      print('Error parsing UserList from JSON: \\${e}');
-      print('JSON data: \\${json}');
       rethrow;
     }
   }

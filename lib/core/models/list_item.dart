@@ -82,7 +82,6 @@ class ListItem extends BaseItem {
   ///
   /// This factory constructor is used when deserializing stored data
   factory ListItem.fromJson(Map<String, dynamic> json) {
-    print('Deserializing ListItem from JSON: \\${json}');
     var item = ListItem(
       name: json['name'] as String,
       icon: json['icon'] as String,
@@ -92,13 +91,11 @@ class ListItem extends BaseItem {
       isArchived: json['isArchived'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
-
     if (json['children'] != null) {
       item.children = (json['children'] as List)
           .map((child) => ListItem.fromJson(child as Map<String, dynamic>))
           .toList();
     }
-    print('Created ListItem: \\${item.toJson()}');
     return item;
   }
 }

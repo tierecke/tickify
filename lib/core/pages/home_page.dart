@@ -527,8 +527,6 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
       );
 
-      print('Adding new item: ${newItem.name} with icon: ${newItem.icon}');
-
       // Create a new list instance with the updated items
       final updatedList = UserList(
         name: _currentList.name,
@@ -548,12 +546,8 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         _currentList = updatedList;
         _isAddingNewItem = false;
         _newItemText = '';
-        _newItemEmoji = '📝';
+        _newItemEmoji = '��';
       });
-
-      print('Current list items count: ${_currentList.items.length}');
-      print(
-          'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
 
       // Save to local storage
       await _saveLocally();
@@ -580,9 +574,6 @@ class _ListDetailPageState extends State<_ListDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    print('Building with ${_currentList.items.length} items');
-    print(
-        'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -756,7 +747,6 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                       }
 
                       final item = _currentList.items[index];
-                      print('Building item $index: ${item.name}');
                       return ListTile(
                         leading: EmojiIcon(
                           emoji: item.icon,
