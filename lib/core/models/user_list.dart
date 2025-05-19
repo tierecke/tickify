@@ -57,6 +57,9 @@ class UserList extends BaseItem {
   /// Timestamp when the list was last modified
   DateTime lastModifiedAt;
 
+  /// Whether the list has unsynchronized changes
+  bool hasUnsynchronizedChanges;
+
   /// Creates a new [UserList] with the given properties.
   ///
   /// Required parameters:
@@ -72,6 +75,7 @@ class UserList extends BaseItem {
   /// * [createdAt]: Creation timestamp (defaults to current time)
   /// * [lastOpenedAt]: Last opened timestamp (defaults to current time)
   /// * [lastModifiedAt]: Last modified timestamp (defaults to current time)
+  /// * [hasUnsynchronizedChanges]: Whether the list has unsynchronized changes (defaults to false)
   UserList({
     required this.name,
     required this.icon,
@@ -83,6 +87,7 @@ class UserList extends BaseItem {
     DateTime? createdAt,
     DateTime? lastOpenedAt,
     DateTime? lastModifiedAt,
+    this.hasUnsynchronizedChanges = false,
   })  : items = items ?? <ListItem>[],
         shared = shared ?? <SharedUser>[],
         lastOpenedAt = lastOpenedAt ?? DateTime.now(),
@@ -101,6 +106,12 @@ class UserList extends BaseItem {
   /// Updates the last modified timestamp to the current time
   void updateLastModified() {
     lastModifiedAt = DateTime.now();
+    hasUnsynchronizedChanges = true;
+  }
+
+  /// Marks the list as synchronized
+  void markAsSynchronized() {
+    hasUnsynchronizedChanges = false;
   }
 
   /// Adds a new item to the list
@@ -175,29 +186,38 @@ class UserList extends BaseItem {
         'isArchived': isArchived,
         'lastOpenedAt': lastOpenedAt.toIso8601String(),
         'lastModifiedAt': lastModifiedAt.toIso8601String(),
+        'hasUnsynchronizedChanges': hasUnsynchronizedChanges,
       };
 
   /// Creates a [UserList] from a JSON map, including all its items
   ///
   /// This factory constructor is used when deserializing stored data
   factory UserList.fromJson(Map<String, dynamic> json) {
-    final items = (json['items'] as List?)
-        ?.map((item) => ListItem.fromJson(item as Map<String, dynamic>))
-        .toList();
-    final shared = (json['shared'] as List?)
-        ?.map((s) => SharedUser.fromJson(s as Map<String, dynamic>))
-        .toList();
-    return UserList(
-      name: json['name'] as String,
-      icon: json['icon'] as String,
-      id: json['id'] as String,
-      items: items,
-      ownerId: json['ownerId'] as String?,
-      shared: shared,
-      isArchived: json['isArchived'] as bool,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      lastOpenedAt: DateTime.parse(json['lastOpenedAt'] as String),
-      lastModifiedAt: DateTime.parse(json['lastModifiedAt'] as String),
-    );
+    try {
+      final items = (json['items'] as List<dynamic>?)
+          ?.map((item) => ListItem.fromJson(item as Map<String, dynamic>))
+          .toList();
+      final shared = (json['shared'] as List<dynamic>?)
+          ?.map((s) => SharedUser.fromJson(s as Map<String, dynamic>))
+          .toList();
+      return UserList(
+        name: json['name'] as String,
+        icon: json['icon'] as String,
+        id: json['id'] as String,
+        items: items ?? [],
+        ownerId: json['ownerId'] as String?,
+        shared: shared ?? [],
+        isArchived: json['isArchived'] as bool? ?? false,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        lastOpenedAt: DateTime.parse(json['lastOpenedAt'] as String),
+        lastModifiedAt: DateTime.parse(json['lastModifiedAt'] as String),
+        hasUnsynchronizedChanges:
+            json['hasUnsynchronizedChanges'] as bool? ?? false,
+      );
+    } catch (e) {
+      print('Error parsing UserList from JSON: $e');
+      print('JSON data: $json');
+      rethrow;
+    }
   }
 }

@@ -34,6 +34,9 @@ class _EditableTextFieldState extends State<EditableTextField> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.text);
+    if (widget.autofocus) {
+      isEditing = true;
+    }
   }
 
   @override
@@ -56,9 +59,6 @@ class _EditableTextFieldState extends State<EditableTextField> {
         _controller.text.trim().length > widget.maxLength
             ? widget.maxLength
             : _controller.text.trim().length);
-    setState(() {
-      isEditing = false;
-    });
     if (widget.onSubmitted != null) {
       widget.onSubmitted!(value);
     }
@@ -77,7 +77,12 @@ class _EditableTextFieldState extends State<EditableTextField> {
         child: isEditing
             ? Focus(
                 onFocusChange: (hasFocus) {
-                  if (!hasFocus) _submit();
+                  if (!hasFocus) {
+                    _submit();
+                    setState(() {
+                      isEditing = false;
+                    });
+                  }
                 },
                 child: TextField(
                   controller: _controller,
@@ -94,7 +99,12 @@ class _EditableTextFieldState extends State<EditableTextField> {
                     contentPadding: EdgeInsets.zero,
                     counterText: '',
                   ),
-                  onSubmitted: (_) => _submit(),
+                  onSubmitted: (_) {
+                    _submit();
+                    setState(() {
+                      isEditing = false;
+                    });
+                  },
                   textInputAction: TextInputAction.done,
                 ),
               )

@@ -9,8 +9,12 @@ import '../widgets/login_dialog.dart';
 import '../repositories/firebase_repository.dart';
 import '../repositories/local_repository.dart';
 import '../models/user_list.dart';
+import '../models/list_item.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../widgets/editable_text_field.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import '../widgets/emoji_icon.dart';
 
 /// Main screen of the application with platform-adaptive navigation
 /// Renders differently on iOS and Android while maintaining consistent functionality
@@ -306,8 +310,11 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   bool isEditingName = false;
   late TextEditingController _nameController;
   bool showEmojiPicker = false;
-  bool hasUnsynchronizedChanges = false;
   late UserList _currentList;
+  final FocusNode _newItemFocusNode = FocusNode();
+  bool _isAddingNewItem = false;
+  String _newItemText = '';
+  String _newItemEmoji = '📝';
 
   @override
   void initState() {
@@ -328,15 +335,15 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _newItemFocusNode.dispose();
     super.dispose();
   }
 
   Future<void> _saveLocally() async {
-    setState(() {
-      hasUnsynchronizedChanges = true;
-    });
     // Save to SharedPreferences
     final localRepository = LocalRepository();
+    _currentList
+        .updateLastModified(); // Ensure changes are marked as unsynchronized
     await localRepository.saveList(_currentList);
   }
 
@@ -378,8 +385,85 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     );
   }
 
+  Future<void> _addNewItem() async {
+    setState(() {
+      _isAddingNewItem = true;
+      _newItemText = '';
+    });
+    // Focus the text field after the widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _newItemFocusNode.requestFocus();
+    });
+  }
+
+  Future<void> _submitNewItem() async {
+    if (_newItemText.trim().isEmpty) {
+      setState(() {
+        _isAddingNewItem = false;
+      });
+      return;
+    }
+
+    // Create new item
+    final newItem = ListItem(
+      name: _newItemText.trim(),
+      icon: _newItemEmoji,
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+    );
+
+    print('Adding new item: ${newItem.name} with icon: ${newItem.icon}');
+
+    // Create a new list with the updated items
+    final updatedList = UserList(
+      name: _currentList.name,
+      icon: _currentList.icon,
+      id: _currentList.id,
+      items: [..._currentList.items, newItem],
+      ownerId: _currentList.ownerId,
+      shared: _currentList.shared,
+      isArchived: _currentList.isArchived,
+      createdAt: _currentList.createdAt,
+      lastOpenedAt: _currentList.lastOpenedAt,
+      lastModifiedAt: DateTime.now(),
+      hasUnsynchronizedChanges: true,
+    );
+
+    // Update the current list
+    setState(() {
+      _currentList = updatedList;
+      _isAddingNewItem = false;
+    });
+
+    print('Current list items count: ${_currentList.items.length}');
+    print(
+        'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
+
+    // Save to local storage
+    final localRepository = LocalRepository();
+    await localRepository.saveList(_currentList);
+  }
+
+  Future<void> _pickNewItemEmoji() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return EmojiPicker(
+          onEmojiSelected: (category, emoji) {
+            setState(() {
+              _newItemEmoji = emoji.emoji;
+            });
+            Navigator.of(context).pop();
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    print('Building with ${_currentList.items.length} items');
+    print(
+        'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -387,15 +471,17 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         children: [
           Row(
             children: [
-              GestureDetector(
-                onTap: widget.isWriteMode ? _pickEmoji : null,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 0, right: 8),
-                  child: Text(
-                    _currentList.icon,
-                    style: const TextStyle(fontSize: 40),
-                  ),
-                ),
+              EmojiIcon(
+                emoji: _currentList.icon,
+                size: 40,
+                editable: widget.isWriteMode,
+                onEmojiSelected: (newEmoji) async {
+                  setState(() {
+                    _currentList.icon = newEmoji;
+                    _currentList.updateLastModified();
+                  });
+                  await _saveLocally();
+                },
               ),
               Expanded(
                 child: EditableTextField(
@@ -422,19 +508,18 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                       ? 'Hide archived items'
                       : 'Show archived items',
                 ),
-              if (hasUnsynchronizedChanges)
+              if (_currentList.hasUnsynchronizedChanges)
                 IconButton(
                   icon: Icon(
                     Icons.sync,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   onPressed: () async {
-                    // Save to Firestore
                     final firebaseRepository = FirebaseRepository();
                     if (firebaseRepository.currentUser != null) {
                       await firebaseRepository.saveList(_currentList);
                       setState(() {
-                        hasUnsynchronizedChanges = false;
+                        _currentList.markAsSynchronized();
                       });
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -448,39 +533,191 @@ class _ListDetailPageState extends State<_ListDetailPage> {
             ],
           ),
           const SizedBox(height: 32),
-          // TODO: Render the list items as a tree with categories and subcategories
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+          if (_isAddingNewItem)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Row(
                 children: [
-                  Text(
-                    'No items yet. Add items to your list!',
-                    style: Theme.of(context).textTheme.bodyLarge,
+                  EmojiIcon(
+                    emoji: _newItemEmoji,
+                    size: 20,
+                    editable: true,
+                    onEmojiSelected: (newEmoji) {
+                      setState(() {
+                        _newItemEmoji = newEmoji;
+                      });
+                    },
                   ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    height: 56,
-                    width: 56,
-                    child: FloatingActionButton(
-                      onPressed: widget.isWriteMode
-                          ? () {
-                              // TODO: Implement add item functionality
-                            }
-                          : null,
-                      shape: const CircleBorder(),
-                      child: const Text(
-                        '+',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: EditableTextField(
+                      text: _newItemText,
+                      isEditable: true,
+                      autofocus: true,
+                      style: const TextStyle(fontSize: 16),
+                      onSubmitted: (value) {
+                        setState(() {
+                          _newItemText = value;
+                        });
+                        _submitNewItem();
+                      },
                     ),
                   ),
                 ],
               ),
             ),
+          Expanded(
+            child: _currentList.items.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'No items yet. Add items to your list!',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        const SizedBox(height: 24),
+                        if (widget.isWriteMode)
+                          SizedBox(
+                            height: 56,
+                            width: 56,
+                            child: FloatingActionButton(
+                              onPressed: _addNewItem,
+                              shape: const CircleBorder(),
+                              child: const Text(
+                                '+',
+                                style: TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _currentList.items.length,
+                    itemBuilder: (context, index) {
+                      final item = _currentList.items[index];
+                      print('Building item $index: ${item.name}');
+                      return ListTile(
+                        leading: EmojiIcon(
+                          emoji: item.icon,
+                          size: 20,
+                          editable: widget.isWriteMode,
+                          onEmojiSelected: (newEmoji) {
+                            setState(() {
+                              // Create a new item with the updated emoji
+                              final updatedItem = ListItem(
+                                name: item.name,
+                                icon: newEmoji,
+                                id: item.id,
+                                parentId: item.parentId,
+                                isDone: item.isDone,
+                                isArchived: item.isArchived,
+                                children: item.children,
+                                createdAt: item.createdAt,
+                              );
+
+                              // Create a new list with the updated item
+                              final updatedList = UserList(
+                                name: _currentList.name,
+                                icon: _currentList.icon,
+                                id: _currentList.id,
+                                items: _currentList.items
+                                    .map((i) =>
+                                        i.id == item.id ? updatedItem : i)
+                                    .toList(),
+                                ownerId: _currentList.ownerId,
+                                shared: _currentList.shared,
+                                isArchived: _currentList.isArchived,
+                                createdAt: _currentList.createdAt,
+                                lastOpenedAt: _currentList.lastOpenedAt,
+                                lastModifiedAt: DateTime.now(),
+                                hasUnsynchronizedChanges: true,
+                              );
+
+                              _currentList = updatedList;
+                            });
+                            _saveLocally();
+                          },
+                        ),
+                        title: EditableTextField(
+                          text: item.name,
+                          isEditable: widget.isWriteMode,
+                          style: const TextStyle(fontSize: 16),
+                          onSubmitted: (newName) {
+                            setState(() {
+                              // Create a new item with the updated name
+                              final updatedItem = ListItem(
+                                name: newName,
+                                icon: item.icon,
+                                id: item.id,
+                                parentId: item.parentId,
+                                isDone: item.isDone,
+                                isArchived: item.isArchived,
+                                children: item.children,
+                                createdAt: item.createdAt,
+                              );
+
+                              // Create a new list with the updated item
+                              final updatedList = UserList(
+                                name: _currentList.name,
+                                icon: _currentList.icon,
+                                id: _currentList.id,
+                                items: _currentList.items
+                                    .map((i) =>
+                                        i.id == item.id ? updatedItem : i)
+                                    .toList(),
+                                ownerId: _currentList.ownerId,
+                                shared: _currentList.shared,
+                                isArchived: _currentList.isArchived,
+                                createdAt: _currentList.createdAt,
+                                lastOpenedAt: _currentList.lastOpenedAt,
+                                lastModifiedAt: DateTime.now(),
+                                hasUnsynchronizedChanges: true,
+                              );
+
+                              _currentList = updatedList;
+                            });
+                            _saveLocally();
+                          },
+                        ),
+                        trailing: widget.isWriteMode
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      item.isDone
+                                          ? Icons.check_circle
+                                          : Icons.circle_outlined,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        item.toggleDone();
+                                        _currentList.updateLastModified();
+                                      });
+                                      _saveLocally();
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.archive_outlined),
+                                    onPressed: () {
+                                      setState(() {
+                                        item.isArchived = true;
+                                        _currentList.updateLastModified();
+                                      });
+                                      _saveLocally();
+                                    },
+                                  ),
+                                ],
+                              )
+                            : null,
+                      );
+                    },
+                  ),
           ),
         ],
       ),
