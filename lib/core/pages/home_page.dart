@@ -246,6 +246,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   bool isEditingName = false;
   late TextEditingController _nameController;
   bool showEmojiPicker = false;
+  bool hasUnsynchronizedChanges = false;
 
   @override
   void initState() {
@@ -259,6 +260,15 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     super.dispose();
   }
 
+  Future<void> _saveLocally() async {
+    setState(() {
+      hasUnsynchronizedChanges = true;
+    });
+    // Save to SharedPreferences
+    final localRepository = LocalRepository();
+    await localRepository.saveList(widget.list);
+  }
+
   Future<void> _submitName() async {
     setState(() {
       widget.list.name = _nameController.text.trim().substring(
@@ -269,14 +279,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
       widget.list.updateLastModified();
       isEditingName = false;
     });
-    // Save to SharedPreferences
-    final localRepository = LocalRepository();
-    await localRepository.saveList(widget.list);
-    // If logged in, also save to Firestore
-    final firebaseRepository = FirebaseRepository();
-    if (firebaseRepository.currentUser != null) {
-      await firebaseRepository.saveList(widget.list);
-    }
+    await _saveLocally();
   }
 
   Future<void> _pickEmoji() async {
@@ -290,14 +293,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
               widget.list.icon = emoji.emoji;
               widget.list.updateLastModified();
             });
-            // Save to SharedPreferences
-            final localRepository = LocalRepository();
-            await localRepository.saveList(widget.list);
-            // If logged in, also save to Firestore
-            final firebaseRepository = FirebaseRepository();
-            if (firebaseRepository.currentUser != null) {
-              await firebaseRepository.saveList(widget.list);
-            }
+            await _saveLocally();
             Navigator.of(context).pop();
           },
         );
@@ -337,26 +333,42 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                       list.name = newName;
                       list.updateLastModified();
                     });
-                    // Save to SharedPreferences
-                    final localRepository = LocalRepository();
-                    await localRepository.saveList(list);
-                    // If logged in, also save to Firestore
-                    final firebaseRepository = FirebaseRepository();
-                    if (firebaseRepository.currentUser != null) {
-                      await firebaseRepository.saveList(list);
-                    }
+                    await _saveLocally();
                   },
                 ),
               ),
               if (widget.isWriteMode) ...[
                 IconButton(
-                  icon: const Icon(Icons.edit),
-                  onPressed: () {
-                    setState(() {
-                      isEditingName = true;
-                      _nameController.text = list.name;
-                    });
-                  },
+                  icon: Icon(
+                    Icons.sync,
+                    color: hasUnsynchronizedChanges
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.38),
+                  ),
+                  onPressed: hasUnsynchronizedChanges
+                      ? () async {
+                          // Save to Firestore
+                          final firebaseRepository = FirebaseRepository();
+                          if (firebaseRepository.currentUser != null) {
+                            await firebaseRepository.saveList(list);
+                            setState(() {
+                              hasUnsynchronizedChanges = false;
+                            });
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('List synchronized')),
+                              );
+                            }
+                          }
+                        }
+                      : null,
+                  tooltip: hasUnsynchronizedChanges
+                      ? 'Synchronize list'
+                      : 'No changes to synchronize',
                 ),
                 IconButton(
                   icon: Icon(
