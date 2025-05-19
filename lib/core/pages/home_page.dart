@@ -413,39 +413,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                   },
                 ),
               ),
-              if (widget.isWriteMode) ...[
-                IconButton(
-                  icon: Icon(
-                    Icons.sync,
-                    color: hasUnsynchronizedChanges
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.38),
-                  ),
-                  onPressed: hasUnsynchronizedChanges
-                      ? () async {
-                          // Save to Firestore
-                          final firebaseRepository = FirebaseRepository();
-                          if (firebaseRepository.currentUser != null) {
-                            await firebaseRepository.saveList(_currentList);
-                            setState(() {
-                              hasUnsynchronizedChanges = false;
-                            });
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('List synchronized')),
-                              );
-                            }
-                          }
-                        }
-                      : null,
-                  tooltip: hasUnsynchronizedChanges
-                      ? 'Synchronize list'
-                      : 'No changes to synchronize',
-                ),
+              if (widget.isWriteMode)
                 IconButton(
                   icon: Icon(
                       showArchived ? Icons.visibility_off : Icons.visibility),
@@ -454,7 +422,29 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                       ? 'Hide archived items'
                       : 'Show archived items',
                 ),
-              ],
+              if (hasUnsynchronizedChanges)
+                IconButton(
+                  icon: Icon(
+                    Icons.sync,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  onPressed: () async {
+                    // Save to Firestore
+                    final firebaseRepository = FirebaseRepository();
+                    if (firebaseRepository.currentUser != null) {
+                      await firebaseRepository.saveList(_currentList);
+                      setState(() {
+                        hasUnsynchronizedChanges = false;
+                      });
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('List synchronized')),
+                        );
+                      }
+                    }
+                  },
+                  tooltip: 'Synchronize list',
+                ),
             ],
           ),
           const SizedBox(height: 32),
