@@ -48,7 +48,7 @@ dependencies:
   # Utils
   uuid: ^4.2.2
   equatable: ^2.0.5
-  shared_preferences: ^2.2.3
+  shared_preferences: 2.2.2
   emoji_picker_flutter: ^2.2.0
 
 dev_dependencies:

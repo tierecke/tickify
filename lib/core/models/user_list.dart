@@ -87,11 +87,12 @@ class UserList extends BaseItem {
     DateTime? createdAt,
     DateTime? lastOpenedAt,
     DateTime? lastModifiedAt,
-    this.hasUnsynchronizedChanges = false,
+    bool? hasUnsynchronizedChanges,
   })  : items = items ?? <ListItem>[],
         shared = shared ?? <SharedUser>[],
         lastOpenedAt = lastOpenedAt ?? DateTime.now(),
         lastModifiedAt = lastModifiedAt ?? DateTime.now(),
+        hasUnsynchronizedChanges = hasUnsynchronizedChanges ?? false,
         super(
           name: name,
           icon: icon,
@@ -107,11 +108,15 @@ class UserList extends BaseItem {
   void updateLastModified() {
     lastModifiedAt = DateTime.now();
     hasUnsynchronizedChanges = true;
+    print(
+        'List ${id} marked as modified. hasUnsynchronizedChanges: $hasUnsynchronizedChanges');
   }
 
   /// Marks the list as synchronized
   void markAsSynchronized() {
     hasUnsynchronizedChanges = false;
+    print(
+        'List ${id} marked as synchronized. hasUnsynchronizedChanges: $hasUnsynchronizedChanges');
   }
 
   /// Adds a new item to the list
@@ -177,30 +182,45 @@ class UserList extends BaseItem {
 
   /// Converts the list and all its items to a JSON map for persistence
   @override
-  Map<String, dynamic> toJson() => {
-        ...super.toJson(),
-        'id': id,
-        'items': items.map((item) => item.toJson()).toList(),
-        'ownerId': ownerId,
-        'shared': shared.map((s) => s.toJson()).toList(),
-        'isArchived': isArchived,
-        'lastOpenedAt': lastOpenedAt.toIso8601String(),
-        'lastModifiedAt': lastModifiedAt.toIso8601String(),
-        'hasUnsynchronizedChanges': hasUnsynchronizedChanges,
-      };
+  Map<String, dynamic> toJson() {
+    final json = {
+      ...super.toJson(),
+      'id': id,
+      'items': items.map((item) => item.toJson()).toList(),
+      'ownerId': ownerId,
+      'shared': shared.map((s) => s.toJson()).toList(),
+      'isArchived': isArchived,
+      'lastOpenedAt': lastOpenedAt.toIso8601String(),
+      'lastModifiedAt': lastModifiedAt.toIso8601String(),
+      'hasUnsynchronizedChanges': hasUnsynchronizedChanges,
+    };
+    print(
+        'Converting list ${id} to JSON. hasUnsynchronizedChanges: $hasUnsynchronizedChanges');
+    print('JSON data: $json');
+    return json;
+  }
 
   /// Creates a [UserList] from a JSON map, including all its items
   ///
   /// This factory constructor is used when deserializing stored data
   factory UserList.fromJson(Map<String, dynamic> json) {
     try {
+      print('Parsing JSON for list: ${json['id']}');
+      print('JSON data: $json');
+
       final items = (json['items'] as List<dynamic>?)
           ?.map((item) => ListItem.fromJson(item as Map<String, dynamic>))
           .toList();
       final shared = (json['shared'] as List<dynamic>?)
           ?.map((s) => SharedUser.fromJson(s as Map<String, dynamic>))
           .toList();
-      return UserList(
+
+      // Explicitly handle hasUnsynchronizedChanges
+      final hasUnsynchronizedChanges =
+          json['hasUnsynchronizedChanges'] as bool?;
+      print('Parsed hasUnsynchronizedChanges: $hasUnsynchronizedChanges');
+
+      final list = UserList(
         name: json['name'] as String,
         icon: json['icon'] as String,
         id: json['id'] as String,
@@ -211,9 +231,12 @@ class UserList extends BaseItem {
         createdAt: DateTime.parse(json['createdAt'] as String),
         lastOpenedAt: DateTime.parse(json['lastOpenedAt'] as String),
         lastModifiedAt: DateTime.parse(json['lastModifiedAt'] as String),
-        hasUnsynchronizedChanges:
-            json['hasUnsynchronizedChanges'] as bool? ?? false,
+        hasUnsynchronizedChanges: hasUnsynchronizedChanges,
       );
+
+      print(
+          'Created list ${list.id} with hasUnsynchronizedChanges: ${list.hasUnsynchronizedChanges}');
+      return list;
     } catch (e) {
       print('Error parsing UserList from JSON: $e');
       print('JSON data: $json');

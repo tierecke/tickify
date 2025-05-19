@@ -30,10 +30,31 @@ class FirebaseRepository {
     if (list.ownerId == null) {
       list.ownerId = user.uid;
     }
+
+    // Create a copy of the list to save to Firebase
+    final listToSave = UserList(
+      name: list.name,
+      icon: list.icon,
+      id: list.id,
+      items: List<ListItem>.from(list.items),
+      ownerId: list.ownerId,
+      shared: List<SharedUser>.from(list.shared),
+      isArchived: list.isArchived,
+      createdAt: list.createdAt,
+      lastOpenedAt: list.lastOpenedAt,
+      lastModifiedAt: DateTime.now(),
+      hasUnsynchronizedChanges: false, // Always false in Firebase
+    );
+
     // Update timestamps before saving
-    list.updateLastModified();
-    list.updateLastOpened();
-    await _listsCollection.doc(list.id).set(list.toJson());
+    listToSave.updateLastModified();
+    listToSave.updateLastOpened();
+
+    print('Saving list ${listToSave.id} to Firebase');
+    print(
+        'List has unsynchronized changes: ${listToSave.hasUnsynchronizedChanges}');
+
+    await _listsCollection.doc(listToSave.id).set(listToSave.toJson());
   }
 
   /// Deletes a list from Firestore
@@ -114,7 +135,26 @@ class FirebaseRepository {
 
     // Update cloud with local changes
     for (var list in listsToUpdate) {
-      await _listsCollection.doc(list.id).set(list.toJson());
+      // Create a copy of the list to save to Firebase
+      final listToSave = UserList(
+        name: list.name,
+        icon: list.icon,
+        id: list.id,
+        items: List<ListItem>.from(list.items),
+        ownerId: list.ownerId,
+        shared: List<SharedUser>.from(list.shared),
+        isArchived: list.isArchived,
+        createdAt: list.createdAt,
+        lastOpenedAt: list.lastOpenedAt,
+        lastModifiedAt: DateTime.now(),
+        hasUnsynchronizedChanges: false, // Always false in Firebase
+      );
+
+      print('Saving list ${listToSave.id} to Firebase during sync');
+      print(
+          'List has unsynchronized changes: ${listToSave.hasUnsynchronizedChanges}');
+
+      await _listsCollection.doc(listToSave.id).set(listToSave.toJson());
     }
 
     // Return combined list of all lists, with newer versions taking precedence
@@ -122,7 +162,21 @@ class FirebaseRepository {
       final cloudList = cloudMap[localList.id];
       if (cloudList != null &&
           cloudList.lastModifiedAt.isAfter(localList.lastModifiedAt)) {
-        return cloudList;
+        // If we're using the cloud version, it should be marked as synchronized
+        final synchronizedList = UserList(
+          name: cloudList.name,
+          icon: cloudList.icon,
+          id: cloudList.id,
+          items: List<ListItem>.from(cloudList.items),
+          ownerId: cloudList.ownerId,
+          shared: List<SharedUser>.from(cloudList.shared),
+          isArchived: cloudList.isArchived,
+          createdAt: cloudList.createdAt,
+          lastOpenedAt: cloudList.lastOpenedAt,
+          lastModifiedAt: cloudList.lastModifiedAt,
+          hasUnsynchronizedChanges: false, // Mark as synchronized
+        );
+        return synchronizedList;
       }
       return localList;
     }).toList();

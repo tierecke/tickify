@@ -45,23 +45,93 @@ class HomePageState extends State<HomePage> {
 
   Future<void> _loadRecentList() async {
     final firebaseRepository = FirebaseRepository();
+    final localRepository = LocalRepository();
     final user = firebaseRepository.currentUser;
     List<UserList> lists;
 
-    if (user == null) {
-      // Load from local storage
-      lists = await LocalRepository().loadLists();
-    } else {
-      // Load from Firestore
-      lists = await firebaseRepository.streamLists().first;
+    // Always load from local storage first
+    lists = await localRepository.loadLists();
+    print('Loaded ${lists.length} lists from local storage');
+    for (var list in lists) {
+      print(
+          'Local list ${list.id} has unsynchronized changes: ${list.hasUnsynchronizedChanges}');
+    }
+
+    if (user != null) {
+      // If logged in, also load from Firestore but preserve local changes
+      try {
+        final cloudLists = await firebaseRepository.streamLists().first;
+        print('Loaded ${cloudLists.length} lists from cloud');
+
+        // Create a map of local lists for easy lookup
+        final localMap = {for (var list in lists) list.id: list};
+
+        // Merge cloud lists with local lists, preserving local changes
+        for (var cloudList in cloudLists) {
+          final localList = localMap[cloudList.id];
+          if (localList != null) {
+            // If we have a local version, only update if it's not modified
+            if (!localList.hasUnsynchronizedChanges) {
+              // Create a new instance with the cloud data but preserve sync state
+              final updatedList = UserList(
+                name: cloudList.name,
+                icon: cloudList.icon,
+                id: cloudList.id,
+                items: List<ListItem>.from(cloudList.items),
+                ownerId: cloudList.ownerId,
+                shared: List<SharedUser>.from(cloudList.shared),
+                isArchived: cloudList.isArchived,
+                createdAt: cloudList.createdAt,
+                lastOpenedAt: cloudList.lastOpenedAt,
+                lastModifiedAt: cloudList.lastModifiedAt,
+                hasUnsynchronizedChanges:
+                    false, // Cloud lists are always synchronized
+              );
+              lists.removeWhere((l) => l.id == cloudList.id);
+              lists.add(updatedList);
+            }
+          } else {
+            // If we don't have a local version, add the cloud version
+            // Create a new instance with the cloud data
+            final newList = UserList(
+              name: cloudList.name,
+              icon: cloudList.icon,
+              id: cloudList.id,
+              items: List<ListItem>.from(cloudList.items),
+              ownerId: cloudList.ownerId,
+              shared: List<SharedUser>.from(cloudList.shared),
+              isArchived: cloudList.isArchived,
+              createdAt: cloudList.createdAt,
+              lastOpenedAt: cloudList.lastOpenedAt,
+              lastModifiedAt: cloudList.lastModifiedAt,
+              hasUnsynchronizedChanges:
+                  false, // Cloud lists are always synchronized
+            );
+            lists.add(newList);
+          }
+        }
+
+        // Save the merged lists back to local storage
+        await localRepository.saveAllLists(lists);
+      } catch (e) {
+        print('Error loading from cloud: $e');
+        // Continue with local lists if cloud load fails
+      }
     }
 
     if (lists.isNotEmpty) {
       // Sort lists by lastOpenedAt to find the most recent
       lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
       if (mounted) {
-        setState(() {
-          recentList = lists.first;
+        // Use Future.microtask to schedule the setState after the current build
+        Future.microtask(() {
+          if (mounted) {
+            setState(() {
+              recentList = lists.first;
+              print(
+                  'Selected recent list ${recentList!.id} with unsynchronized changes: ${recentList!.hasUnsynchronizedChanges}');
+            });
+          }
         });
       }
     }
@@ -108,6 +178,7 @@ class HomePageState extends State<HomePage> {
       await localRepository.saveList(newList);
     } else {
       await firebaseRepository.saveList(newList);
+      await localRepository.saveList(newList); // Also save locally
     }
     setState(() {
       recentList = newList;
@@ -120,6 +191,11 @@ class HomePageState extends State<HomePage> {
 
     // Get local lists before login
     final localLists = await localRepository.loadLists();
+    print('Local lists before login: ${localLists.length}');
+    for (var list in localLists) {
+      print(
+          'Local list ${list.id} has unsynchronized changes: ${list.hasUnsynchronizedChanges}');
+    }
 
     // Show login dialog
     if (!mounted) return;
@@ -136,6 +212,12 @@ class HomePageState extends State<HomePage> {
         // Synchronize lists between local and cloud storage
         final synchronizedLists =
             await firebaseRepository.synchronizeLists(localLists);
+        print('Synchronized lists: ${synchronizedLists.length}');
+        for (var list in synchronizedLists) {
+          print(
+              'Synchronized list ${list.id} has unsynchronized changes: ${list.hasUnsynchronizedChanges}');
+        }
+
         // Save synchronized lists to local storage
         await localRepository.saveAllLists(synchronizedLists);
 
@@ -163,6 +245,7 @@ class HomePageState extends State<HomePage> {
           setState(() {});
         }
       } catch (e) {
+        print('Error during login sync: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error synchronizing lists: $e')),
@@ -199,9 +282,16 @@ class HomePageState extends State<HomePage> {
             if (recentList == null) {
               // Find the most recently opened list
               lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
-              setState(() {
-                recentList = lists.first;
+              // Use Future.microtask to schedule the setState after the current build
+              Future.microtask(() {
+                if (mounted) {
+                  setState(() {
+                    recentList = lists.first;
+                  });
+                }
               });
+              // Show loading indicator while waiting for recentList to be set
+              return const Center(child: CircularProgressIndicator());
             }
             return _ListDetailPage(
               list: recentList!,
@@ -232,9 +322,16 @@ class HomePageState extends State<HomePage> {
           if (recentList == null) {
             // Find the most recently opened list
             lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
-            setState(() {
-              recentList = lists.first;
+            // Use Future.microtask to schedule the setState after the current build
+            Future.microtask(() {
+              if (mounted) {
+                setState(() {
+                  recentList = lists.first;
+                });
+              }
             });
+            // Show loading indicator while waiting for recentList to be set
+            return const Center(child: CircularProgressIndicator());
           }
           return _ListDetailPage(
             list: recentList!,
@@ -340,11 +437,47 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   }
 
   Future<void> _saveLocally() async {
-    // Save to SharedPreferences
-    final localRepository = LocalRepository();
-    _currentList
-        .updateLastModified(); // Ensure changes are marked as unsynchronized
-    await localRepository.saveList(_currentList);
+    try {
+      // Save to SharedPreferences
+      final localRepository = LocalRepository();
+      print(
+          'Before save - List ID: ${_currentList.id}, Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
+
+      // Create a new instance to ensure all changes are captured
+      final listToSave = UserList(
+        name: _currentList.name,
+        icon: _currentList.icon,
+        id: _currentList.id,
+        items: List<ListItem>.from(_currentList.items),
+        ownerId: _currentList.ownerId,
+        shared: List<SharedUser>.from(_currentList.shared),
+        isArchived: _currentList.isArchived,
+        createdAt: _currentList.createdAt,
+        lastOpenedAt: _currentList.lastOpenedAt,
+        lastModifiedAt: DateTime.now(),
+        hasUnsynchronizedChanges: _currentList.hasUnsynchronizedChanges,
+      );
+
+      await localRepository.saveList(listToSave);
+
+      // Verify the save
+      final savedList = await localRepository.loadList(_currentList.id);
+      print(
+          'After save - List ID: ${savedList?.id}, Has unsynchronized changes: ${savedList?.hasUnsynchronizedChanges}');
+
+      if (savedList != null) {
+        setState(() {
+          _currentList = savedList;
+        });
+      }
+    } catch (e) {
+      print('Error saving list locally: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving changes: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _handleModeToggle() async {
@@ -438,9 +571,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     print(
         'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
 
-    // Save to local storage
-    final localRepository = LocalRepository();
-    await localRepository.saveList(_currentList);
+    await _saveLocally();
   }
 
   Future<void> _pickNewItemEmoji() async {
@@ -521,6 +652,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                       setState(() {
                         _currentList.markAsSynchronized();
                       });
+                      await _saveLocally(); // Save the synchronized state
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('List synchronized')),
@@ -606,7 +738,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                           emoji: item.icon,
                           size: 20,
                           editable: widget.isWriteMode,
-                          onEmojiSelected: (newEmoji) {
+                          onEmojiSelected: (newEmoji) async {
                             setState(() {
                               // Create a new item with the updated emoji
                               final updatedItem = ListItem(
@@ -640,14 +772,14 @@ class _ListDetailPageState extends State<_ListDetailPage> {
 
                               _currentList = updatedList;
                             });
-                            _saveLocally();
+                            await _saveLocally();
                           },
                         ),
                         title: EditableTextField(
                           text: item.name,
                           isEditable: widget.isWriteMode,
                           style: const TextStyle(fontSize: 16),
-                          onSubmitted: (newName) {
+                          onSubmitted: (newName) async {
                             setState(() {
                               // Create a new item with the updated name
                               final updatedItem = ListItem(
@@ -681,7 +813,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
 
                               _currentList = updatedList;
                             });
-                            _saveLocally();
+                            await _saveLocally();
                           },
                         ),
                         trailing: widget.isWriteMode
@@ -694,22 +826,22 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                                           ? Icons.check_circle
                                           : Icons.circle_outlined,
                                     ),
-                                    onPressed: () {
+                                    onPressed: () async {
                                       setState(() {
                                         item.toggleDone();
                                         _currentList.updateLastModified();
                                       });
-                                      _saveLocally();
+                                      await _saveLocally();
                                     },
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.archive_outlined),
-                                    onPressed: () {
+                                    onPressed: () async {
                                       setState(() {
                                         item.isArchived = true;
                                         _currentList.updateLastModified();
                                       });
-                                      _saveLocally();
+                                      await _saveLocally();
                                     },
                                   ),
                                 ],
