@@ -241,6 +241,12 @@ class HomePageState extends State<HomePage> {
     }
   }
 
+  void _updateRecentList(UserList updatedList) {
+    setState(() {
+      recentList = updatedList;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     const platformNav = PlatformNavigation();
@@ -284,6 +290,7 @@ class HomePageState extends State<HomePage> {
               isWriteMode: isWriteMode,
               onToggleWriteMode: _handleModeToggle,
               showBackButton: false,
+              onListChanged: _updateRecentList,
             );
           },
         );
@@ -324,6 +331,7 @@ class HomePageState extends State<HomePage> {
             isWriteMode: isWriteMode,
             onToggleWriteMode: _handleModeToggle,
             showBackButton: false,
+            onListChanged: _updateRecentList,
           );
         },
       );
@@ -377,11 +385,13 @@ class _ListDetailPage extends StatefulWidget {
   final bool isWriteMode;
   final VoidCallback onToggleWriteMode;
   final bool showBackButton;
+  final void Function(UserList)? onListChanged;
   const _ListDetailPage({
     required this.list,
     required this.isWriteMode,
     required this.onToggleWriteMode,
     this.showBackButton = true,
+    this.onListChanged,
   });
 
   @override
@@ -397,7 +407,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   final FocusNode _newItemFocusNode = FocusNode();
   bool _isAddingNewItem = false;
   String _newItemText = '';
-  String _newItemEmoji = '📝';
+  String _newItemEmoji = '🐶';
   bool _isSubmittingNewItem = false;
 
   @override
@@ -427,21 +437,9 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     try {
       // Save to SharedPreferences
       final localRepository = LocalRepository();
-      print(
-          'Before save - List ID: ${_currentList.id}, Items count: ${_currentList.items.length}');
-      print(
-          'Has unsynchronized changes: ${_currentList.hasUnsynchronizedChanges}');
-
-      // Save the current list directly
       await localRepository.saveList(_currentList);
-
       // Verify the save
       final savedList = await localRepository.loadList(_currentList.id);
-      print(
-          'After save - List ID: ${savedList?.id}, Items count: ${savedList?.items.length}');
-      print(
-          'Has unsynchronized changes: ${savedList?.hasUnsynchronizedChanges}');
-
       if (savedList != null) {
         if (savedList.items.length != _currentList.items.length) {
           throw Exception('Item count mismatch after save');
@@ -449,9 +447,11 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         setState(() {
           _currentList = savedList;
         });
+        if (widget.onListChanged != null) {
+          widget.onListChanged!(savedList);
+        }
       }
     } catch (e) {
-      print('Error saving list locally: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving changes: $e')),
@@ -546,7 +546,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         _currentList = updatedList;
         _isAddingNewItem = false;
         _newItemText = '';
-        _newItemEmoji = '��';
+        _newItemEmoji = '🐶';
       });
 
       // Save to local storage
@@ -843,16 +843,6 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                                     onPressed: () async {
                                       setState(() {
                                         item.toggleDone();
-                                        _currentList.updateLastModified();
-                                      });
-                                      await _saveLocally();
-                                    },
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.archive_outlined),
-                                    onPressed: () async {
-                                      setState(() {
-                                        item.isArchived = true;
                                         _currentList.updateLastModified();
                                       });
                                       await _saveLocally();
