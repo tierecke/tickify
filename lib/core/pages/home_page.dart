@@ -586,11 +586,21 @@ class _ListDetailPageState extends State<_ListDetailPage> {
       index: index,
       enabled: widget.isWriteMode,
       child: ListTile(
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
+        leading: Checkbox(
+          value: item.isDone,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          onChanged: widget.isWriteMode
+              ? (checked) async {
+                  setState(() {
+                    item.isDone = checked ?? false;
+                    _currentList.updateLastModified();
+                  });
+                  await _saveLocally();
+                }
+              : null,
+        ),
+        title: Row(
           children: [
-            Icon(Icons.more_vert),
-            const SizedBox(width: 8),
             EmojiIcon(
               emoji: item.icon,
               size: 20,
@@ -627,63 +637,48 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                 await _saveLocally();
               },
             ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: EditableTextField(
+                text: item.name,
+                isEditable: widget.isWriteMode,
+                style: const TextStyle(fontSize: 16),
+                onSubmitted: (newName) async {
+                  setState(() {
+                    final updatedItem = ListItem(
+                      name: newName,
+                      icon: item.icon,
+                      id: item.id,
+                      parentId: item.parentId,
+                      isDone: item.isDone,
+                      isArchived: item.isArchived,
+                      children: item.children,
+                      createdAt: item.createdAt,
+                    );
+                    final updatedList = UserList(
+                      name: _currentList.name,
+                      icon: _currentList.icon,
+                      id: _currentList.id,
+                      items: _currentList.items
+                          .map((i) => i.id == item.id ? updatedItem : i)
+                          .toList(),
+                      ownerId: _currentList.ownerId,
+                      shared: _currentList.shared,
+                      isArchived: _currentList.isArchived,
+                      createdAt: _currentList.createdAt,
+                      lastOpenedAt: _currentList.lastOpenedAt,
+                      lastModifiedAt: DateTime.now(),
+                      hasUnsynchronizedChanges: true,
+                    );
+                    _currentList = updatedList;
+                  });
+                  await _saveLocally();
+                },
+              ),
+            ),
           ],
         ),
-        title: EditableTextField(
-          text: item.name,
-          isEditable: widget.isWriteMode,
-          style: const TextStyle(fontSize: 16),
-          onSubmitted: (newName) async {
-            setState(() {
-              final updatedItem = ListItem(
-                name: newName,
-                icon: item.icon,
-                id: item.id,
-                parentId: item.parentId,
-                isDone: item.isDone,
-                isArchived: item.isArchived,
-                children: item.children,
-                createdAt: item.createdAt,
-              );
-              final updatedList = UserList(
-                name: _currentList.name,
-                icon: _currentList.icon,
-                id: _currentList.id,
-                items: _currentList.items
-                    .map((i) => i.id == item.id ? updatedItem : i)
-                    .toList(),
-                ownerId: _currentList.ownerId,
-                shared: _currentList.shared,
-                isArchived: _currentList.isArchived,
-                createdAt: _currentList.createdAt,
-                lastOpenedAt: _currentList.lastOpenedAt,
-                lastModifiedAt: DateTime.now(),
-                hasUnsynchronizedChanges: true,
-              );
-              _currentList = updatedList;
-            });
-            await _saveLocally();
-          },
-        ),
-        trailing: widget.isWriteMode
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      item.isDone ? Icons.check_circle : Icons.circle_outlined,
-                    ),
-                    onPressed: () async {
-                      setState(() {
-                        item.toggleDone();
-                        _currentList.updateLastModified();
-                      });
-                      await _saveLocally();
-                    },
-                  ),
-                ],
-              )
-            : null,
+        trailing: Icon(Icons.more_vert),
       ),
     );
   }
