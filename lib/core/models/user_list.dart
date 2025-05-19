@@ -1,38 +1,6 @@
 import 'base_item.dart';
 import 'list_item.dart';
 
-/// Represents the different types of lists available in the application.
-///
-/// Each type provides a specific context for the list's purpose and can affect
-/// how the list is displayed and behaves in the UI.
-enum ListType {
-  /// A list for tracking items to purchase
-  shopping,
-
-  /// A list for tracking items to pack (e.g., for travel)
-  packing,
-
-  /// A general-purpose to-do list
-  todo,
-
-  /// A custom list type for user-defined purposes
-  custom;
-
-  /// Returns a human-readable display name for the list type
-  String get displayName {
-    switch (this) {
-      case ListType.shopping:
-        return 'Shopping List';
-      case ListType.packing:
-        return 'Packing List';
-      case ListType.todo:
-        return 'To-Do List';
-      case ListType.custom:
-        return 'Custom List';
-    }
-  }
-}
-
 /// Represents a complete user list containing multiple items organized in a tree structure.
 ///
 /// A UserList is the top-level container that holds all items and provides functionality for:
@@ -43,9 +11,6 @@ enum ListType {
 class UserList extends BaseItem {
   /// Unique identifier for the list
   final String id;
-
-  /// The type of list (shopping, packing, todo, or custom)
-  final ListType type;
 
   /// The root-level items in the list
   /// Each item can have its own children, forming a tree structure
@@ -61,7 +26,6 @@ class UserList extends BaseItem {
   /// * [name]: Display name of the list
   /// * [icon]: Emoji icon for the list
   /// * [id]: Unique identifier
-  /// * [type]: The type of list
   ///
   /// Optional parameters:
   /// * [items]: Initial list of items (defaults to empty list)
@@ -71,36 +35,28 @@ class UserList extends BaseItem {
     required String name,
     required String icon,
     required this.id,
-    required this.type,
     this.items = const [],
     this.isArchived = false,
     DateTime? createdAt,
-    DateTime? lastModifiedAt,
-    DateTime? lastAccessedAt,
   }) : super(
           name: name,
           icon: icon,
           createdAt: createdAt,
-          lastModifiedAt: lastModifiedAt,
-          lastAccessedAt: lastAccessedAt,
         );
 
-  /// Adds a new item to the list and updates the modification timestamp
+  /// Adds a new item to the list
   void addItem(ListItem item) {
     items.add(item);
-    updateLastModified();
   }
 
-  /// Removes an item from the list by its ID and updates the modification timestamp
+  /// Removes an item from the list by its ID
   void removeItem(String itemId) {
     items.removeWhere((item) => item.id == itemId);
-    updateLastModified();
   }
 
-  /// Toggles the archived status of the list and updates the modification timestamp
+  /// Toggles the archived status of the list
   void toggleArchived() {
     isArchived = !isArchived;
-    updateLastModified();
   }
 
   /// Calculates the percentage of completed items in the list
@@ -151,7 +107,6 @@ class UserList extends BaseItem {
   Map<String, dynamic> toJson() => {
         ...super.toJson(),
         'id': id,
-        'type': type.name,
         'items': items.map((item) => item.toJson()).toList(),
         'isArchived': isArchived,
       };
@@ -164,14 +119,8 @@ class UserList extends BaseItem {
       name: json['name'] as String,
       icon: json['icon'] as String,
       id: json['id'] as String,
-      type: ListType.values.firstWhere(
-        (type) => type.name == json['type'],
-        orElse: () => ListType.custom,
-      ),
       isArchived: json['isArchived'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      lastModifiedAt: DateTime.parse(json['lastModifiedAt'] as String),
-      lastAccessedAt: DateTime.parse(json['lastAccessedAt'] as String),
     );
 
     if (json['items'] != null) {

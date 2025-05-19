@@ -48,29 +48,23 @@ class ListItem extends BaseItem {
     this.isArchived = false,
     this.children = const [],
     DateTime? createdAt,
-    DateTime? lastModifiedAt,
-    DateTime? lastAccessedAt,
   }) : super(
           name: name,
           icon: icon,
           createdAt: createdAt,
-          lastModifiedAt: lastModifiedAt,
-          lastAccessedAt: lastAccessedAt,
         );
 
   /// Whether this item is a category (has children) or a leaf item
   bool get isCategory => children.isNotEmpty;
 
-  /// Toggles the done status of the item and updates the modification timestamp
+  /// Toggles the done status of the item
   void toggleDone() {
     isDone = !isDone;
-    updateLastModified();
   }
 
-  /// Toggles the archived status of the item and updates the modification timestamp
+  /// Toggles the archived status of the item
   void toggleArchived() {
     isArchived = !isArchived;
-    updateLastModified();
   }
 
   /// Converts the item and all its children to a JSON map for persistence
@@ -96,8 +90,6 @@ class ListItem extends BaseItem {
       isDone: json['isDone'] as bool,
       isArchived: json['isArchived'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      lastModifiedAt: DateTime.parse(json['lastModifiedAt'] as String),
-      lastAccessedAt: DateTime.parse(json['lastAccessedAt'] as String),
     );
 
     if (json['children'] != null) {
