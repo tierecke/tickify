@@ -47,8 +47,9 @@ class _HomePageState extends State<HomePage> {
 
     UserList? recentList;
     Widget buildBody() {
-      if (firebaseRepository.currentUser == null) {
-        // Not logged in, load lists from local storage
+      final user = firebaseRepository.currentUser;
+      // Always use local storage when not logged in
+      if (user == null) {
         return FutureBuilder<List<UserList>>(
           future: LocalRepository().loadLists(),
           builder: (context, snapshot) {
@@ -76,36 +77,35 @@ class _HomePageState extends State<HomePage> {
             );
           },
         );
-      } else {
-        // Logged in, use Firestore
-        return StreamBuilder<List<UserList>>(
-          stream: firebaseRepository.streamLists(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final lists = snapshot.data!;
-            if (lists.isEmpty) {
-              return EmptyListsState(
-                onCreateList: _handleCreateList,
-              );
-            }
-            // Find the most recently opened list
-            lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
-            recentList = lists.first;
-            return _ListDetailPage(
-              list: recentList!,
-              isWriteMode: isWriteMode,
-              onToggleWriteMode: () =>
-                  setState(() => isWriteMode = !isWriteMode),
-              showBackButton: false,
-            );
-          },
-        );
       }
+
+      // Only use Firestore when logged in
+      return StreamBuilder<List<UserList>>(
+        stream: firebaseRepository.streamLists(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final lists = snapshot.data!;
+          if (lists.isEmpty) {
+            return EmptyListsState(
+              onCreateList: _handleCreateList,
+            );
+          }
+          // Find the most recently opened list
+          lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+          recentList = lists.first;
+          return _ListDetailPage(
+            list: recentList!,
+            isWriteMode: isWriteMode,
+            onToggleWriteMode: () => setState(() => isWriteMode = !isWriteMode),
+            showBackButton: false,
+          );
+        },
+      );
     }
 
     if (Platform.isIOS) {
