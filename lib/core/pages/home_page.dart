@@ -24,6 +24,7 @@ class HomePage extends StatefulWidget {
 class HomePageState extends State<HomePage> {
   bool isWriteMode = true;
   StreamSubscription<User?>? _authSubscription;
+  UserList? recentList;
 
   @override
   void initState() {
@@ -123,7 +124,6 @@ class HomePageState extends State<HomePage> {
     const platformNav = PlatformNavigation();
     final firebaseRepository = FirebaseRepository();
 
-    UserList? recentList;
     Widget buildBody() {
       final user = firebaseRepository.currentUser;
       // Always use local storage when not logged in
