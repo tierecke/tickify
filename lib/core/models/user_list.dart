@@ -16,6 +16,23 @@ class UserList extends BaseItem {
   /// Each item can have its own children, forming a tree structure
   final List<ListItem> items;
 
+  /// The display name of the list (now mutable)
+  @override
+  String name;
+
+  /// Unicode emoji character used as the list's icon (now mutable)
+  @override
+  String icon;
+
+  /// The owner user ID (nullable for local lists)
+  String? ownerId;
+
+  /// List of user IDs this list is shared with (future use)
+  final List<String> sharedWith;
+
+  /// Map of user IDs to permissions (future use)
+  final Map<String, String> permissions;
+
   /// Whether the list is archived
   /// Archived lists are typically hidden from the main view but preserved for future use
   bool isArchived;
@@ -35,20 +52,28 @@ class UserList extends BaseItem {
   ///
   /// Optional parameters:
   /// * [items]: Initial list of items (defaults to empty list)
+  /// * [ownerId]: The owner user ID (nullable for local lists)
+  /// * [sharedWith]: List of user IDs this list is shared with (future use)
+  /// * [permissions]: Map of user IDs to permissions (future use)
   /// * [isArchived]: Whether list is archived (defaults to false)
   /// * [createdAt]: Creation timestamp (defaults to current time)
   /// * [lastOpenedAt]: Last opened timestamp (defaults to current time)
   /// * [lastModifiedAt]: Last modified timestamp (defaults to current time)
   UserList({
-    required String name,
-    required String icon,
+    required this.name,
+    required this.icon,
     required this.id,
     List<ListItem>? items,
+    this.ownerId,
+    List<String>? sharedWith,
+    Map<String, String>? permissions,
     this.isArchived = false,
     DateTime? createdAt,
     DateTime? lastOpenedAt,
     DateTime? lastModifiedAt,
   })  : items = items ?? <ListItem>[],
+        sharedWith = sharedWith ?? <String>[],
+        permissions = permissions ?? <String, String>{},
         lastOpenedAt = lastOpenedAt ?? DateTime.now(),
         lastModifiedAt = lastModifiedAt ?? DateTime.now(),
         super(
@@ -134,6 +159,9 @@ class UserList extends BaseItem {
         ...super.toJson(),
         'id': id,
         'items': items.map((item) => item.toJson()).toList(),
+        'ownerId': ownerId,
+        'sharedWith': sharedWith,
+        'permissions': permissions,
         'isArchived': isArchived,
         'lastOpenedAt': lastOpenedAt.toIso8601String(),
         'lastModifiedAt': lastModifiedAt.toIso8601String(),
@@ -151,6 +179,11 @@ class UserList extends BaseItem {
       icon: json['icon'] as String,
       id: json['id'] as String,
       items: items,
+      ownerId: json['ownerId'] as String?,
+      sharedWith:
+          (json['sharedWith'] as List?)?.map((e) => e as String).toList(),
+      permissions: (json['permissions'] as Map?)
+          ?.map((k, v) => MapEntry(k as String, v as String)),
       isArchived: json['isArchived'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
       lastOpenedAt: DateTime.parse(json['lastOpenedAt'] as String),

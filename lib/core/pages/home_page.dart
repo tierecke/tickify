@@ -158,6 +158,36 @@ class _ListDetailPage extends StatefulWidget {
 
 class _ListDetailPageState extends State<_ListDetailPage> {
   bool showArchived = false;
+  bool isEditingName = false;
+  late TextEditingController _nameController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.list.name);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitName() async {
+    setState(() {
+      widget.list.name = _nameController.text.trim();
+      widget.list.updateLastModified();
+      isEditingName = false;
+    });
+    // Save to SharedPreferences
+    final localRepository = LocalRepository();
+    await localRepository.saveList(widget.list);
+    // If logged in, also save to Firestore
+    final firebaseRepository = FirebaseRepository();
+    if (firebaseRepository.currentUser != null) {
+      await firebaseRepository.saveList(widget.list);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -175,19 +205,62 @@ class _ListDetailPageState extends State<_ListDetailPage> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  list.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 32,
-                  ),
-                ),
+                child: widget.isWriteMode
+                    ? GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            isEditingName = true;
+                            _nameController.text = list.name;
+                          });
+                        },
+                        child: isEditingName
+                            ? Focus(
+                                onFocusChange: (hasFocus) {
+                                  if (!hasFocus) _submitName();
+                                },
+                                child: TextField(
+                                  controller: _nameController,
+                                  autofocus: true,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 32,
+                                  ),
+                                  decoration: const InputDecoration(
+                                    isCollapsed: true,
+                                    border: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    disabledBorder: InputBorder.none,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  onSubmitted: (_) => _submitName(),
+                                  textInputAction: TextInputAction.done,
+                                ),
+                              )
+                            : Text(
+                                list.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 32,
+                                ),
+                              ),
+                      )
+                    : Text(
+                        list.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 32,
+                        ),
+                      ),
               ),
               if (widget.isWriteMode) ...[
                 IconButton(
                   icon: const Icon(Icons.edit),
                   onPressed: () {
-                    // TODO: Implement edit dialog
+                    setState(() {
+                      isEditingName = true;
+                      _nameController.text = list.name;
+                    });
                   },
                 ),
                 IconButton(
