@@ -138,6 +138,7 @@ class HomePageState extends State<HomePage> {
               return const Center(child: CircularProgressIndicator());
             }
             final lists = snapshot.data!;
+            print('Local lists count: ${lists.length}'); // Debug print
             if (lists.isEmpty) {
               return EmptyListsState(
                 onCreateList: _handleCreateList,
@@ -146,6 +147,7 @@ class HomePageState extends State<HomePage> {
             // Find the most recently opened list
             lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
             recentList = lists.first;
+            print('Recent list set to: ${recentList?.name}'); // Debug print
             return _ListDetailPage(
               list: recentList!,
               isWriteMode: isWriteMode,
@@ -168,6 +170,7 @@ class HomePageState extends State<HomePage> {
             return const Center(child: CircularProgressIndicator());
           }
           final lists = snapshot.data!;
+          print('Firestore lists count: ${lists.length}'); // Debug print
           if (lists.isEmpty) {
             return EmptyListsState(
               onCreateList: _handleCreateList,
@@ -176,6 +179,7 @@ class HomePageState extends State<HomePage> {
           // Find the most recently opened list
           lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
           recentList = lists.first;
+          print('Recent list set to: ${recentList?.name}'); // Debug print
           return _ListDetailPage(
             list: recentList!,
             isWriteMode: isWriteMode,
@@ -311,17 +315,16 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         children: [
           Row(
             children: [
-              if (widget.isWriteMode)
-                GestureDetector(
-                  onTap: _pickEmoji,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 0, right: 8),
-                    child: Text(
-                      list.icon,
-                      style: const TextStyle(fontSize: 40),
-                    ),
+              GestureDetector(
+                onTap: widget.isWriteMode ? _pickEmoji : null,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 0, right: 8),
+                  child: Text(
+                    list.icon,
+                    style: const TextStyle(fontSize: 40),
                   ),
                 ),
+              ),
               Expanded(
                 child: EditableTextField(
                   text: list.name,
