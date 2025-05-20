@@ -168,7 +168,7 @@ class HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _handleCreateList() async {
+  Future<void> handleCreateList() async {
     final firebaseRepository = FirebaseRepository();
     final localRepository = LocalRepository();
     final user = firebaseRepository.currentUser;
@@ -291,7 +291,7 @@ class HomePageState extends State<HomePage> {
             final lists = snapshot.data!;
             if (lists.isEmpty) {
               return EmptyListsState(
-                onCreateList: _handleCreateList,
+                onCreateList: handleCreateList,
               );
             }
             UserList? selectedList = recentList;
@@ -335,7 +335,7 @@ class HomePageState extends State<HomePage> {
           final lists = snapshot.data!;
           if (lists.isEmpty) {
             return EmptyListsState(
-              onCreateList: _handleCreateList,
+              onCreateList: handleCreateList,
             );
           }
           UserList? selectedList = recentList;

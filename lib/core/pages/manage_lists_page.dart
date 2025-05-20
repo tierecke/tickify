@@ -5,6 +5,9 @@ import '../repositories/local_repository.dart';
 import '../widgets/emoji_icon.dart';
 import '../widgets/empty_lists_state.dart';
 import '../widgets/confirm_dialog.dart';
+import 'package:uuid/uuid.dart';
+import '../repositories/firebase_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ManageListsPage extends StatefulWidget {
   const ManageListsPage({Key? key}) : super(key: key);
@@ -16,6 +19,8 @@ class ManageListsPage extends StatefulWidget {
 class _ManageListsPageState extends State<ManageListsPage> {
   List<UserList> _lists = [];
   bool _loading = true;
+  final _uuid = Uuid();
+  static const String kActiveListIdKey = 'active_list_id';
 
   @override
   void initState() {
@@ -82,6 +87,28 @@ class _ManageListsPageState extends State<ManageListsPage> {
     }
   }
 
+  Future<UserList> _createNewList() async {
+    final firebaseRepository = FirebaseRepository();
+    final localRepository = LocalRepository();
+    final user = firebaseRepository.currentUser;
+    final newList = UserList(
+      name: 'New List',
+      icon: '📝',
+      id: _uuid.v4(),
+      items: [],
+    );
+    if (user == null) {
+      await localRepository.saveList(newList);
+    } else {
+      await firebaseRepository.saveList(newList);
+      await localRepository.saveList(newList); // Also save locally
+    }
+    // Save as active list
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(kActiveListIdKey, newList.id);
+    return newList;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -97,9 +124,21 @@ class _ManageListsPageState extends State<ManageListsPage> {
                   Navigator.of(context).pop();
                 })
               : ListView.separated(
-                  itemCount: _lists.length,
+                  itemCount: _lists.length + 1,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
+                    if (index == _lists.length) {
+                      return ListTile(
+                        leading: const Icon(Icons.add),
+                        title: const Text('+ New list'),
+                        onTap: () async {
+                          final newList = await _createNewList();
+                          if (mounted) {
+                            Navigator.of(context).pop(newList);
+                          }
+                        },
+                      );
+                    }
                     final list = _lists[index];
                     return Slidable(
                       key: ValueKey(list.id),

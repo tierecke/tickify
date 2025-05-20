@@ -25,9 +25,15 @@ List<NavigationItem> getNavigationItems(BuildContext context) {
   final isLoggedIn = firebaseRepository.currentUser != null;
 
   return [
-    const NavigationItem(
+    NavigationItem(
       title: 'New list',
       icon: Icons.add,
+      onTap: () async {
+        final homePage = context.findAncestorStateOfType<HomePageState>();
+        if (homePage != null) {
+          await homePage.handleCreateList();
+        }
+      },
     ),
     NavigationItem(
       title: 'Manage',
