@@ -628,7 +628,9 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     final item = _currentList.items[index];
     return Dismissible(
       key: ValueKey(item.id),
-      direction: DismissDirection.startToEnd,
+      direction: widget.isWriteMode
+          ? DismissDirection.horizontal
+          : DismissDirection.startToEnd,
       background: Container(
         color: Colors.red[900],
         alignment: Alignment.centerLeft,
@@ -648,24 +650,76 @@ class _ListDetailPageState extends State<_ListDetailPage> {
           ],
         ),
       ),
+      secondaryBackground: widget.isWriteMode
+          ? Container(
+              color: showArchived ? Colors.blue[900] : Colors.blueGrey[900],
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(
+                    showArchived ? Icons.unarchive : Icons.archive,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    showArchived ? 'Unarchive' : 'Archive',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : null,
       confirmDismiss: (direction) async {
-        final result = await showDialog<bool>(
-          context: context,
-          builder: (context) => const ConfirmDialog(
-            title: 'Delete Item',
-            message: 'Are you sure you want to delete this item?',
-            yesTitle: 'Delete',
-            noTitle: 'Cancel',
-          ),
-        );
-        return result == true;
+        if (direction == DismissDirection.startToEnd) {
+          final result = await showDialog<bool>(
+            context: context,
+            builder: (context) => const ConfirmDialog(
+              title: 'Delete Item',
+              message: 'Are you sure you want to delete this item?',
+              yesTitle: 'Delete',
+              noTitle: 'Cancel',
+            ),
+          );
+          return result == true;
+        } else if (direction == DismissDirection.endToStart &&
+            widget.isWriteMode) {
+          final result = await showDialog<bool>(
+            context: context,
+            builder: (context) => ConfirmDialog(
+              title: showArchived ? 'Unarchive Item' : 'Archive Item',
+              message: showArchived
+                  ? 'Are you sure you want to unarchive this item?'
+                  : 'Are you sure you want to archive this item?',
+              yesTitle: showArchived ? 'Unarchive' : 'Archive',
+              noTitle: 'Cancel',
+            ),
+          );
+          return result == true;
+        }
+        return false;
       },
       onDismissed: (direction) async {
-        setState(() {
-          _currentList.items.removeAt(index);
-          _currentList.updateLastModified();
-        });
-        await _saveLocally();
+        if (direction == DismissDirection.startToEnd) {
+          setState(() {
+            _currentList.items.removeAt(index);
+            _currentList.updateLastModified();
+          });
+          await _saveLocally();
+        } else if (direction == DismissDirection.endToStart &&
+            widget.isWriteMode) {
+          setState(() {
+            _currentList.items[index].isArchived = !showArchived;
+            _currentList.updateLastModified();
+            _currentList.items.removeAt(index);
+          });
+          await _saveLocally();
+        }
       },
       child: ListTile(
         leading: Checkbox(
