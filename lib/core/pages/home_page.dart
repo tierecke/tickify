@@ -12,8 +12,6 @@ import '../models/user_list.dart';
 import '../models/list_item.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../widgets/editable_text_field.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../widgets/emoji_icon.dart';
 import '../widgets/add_item_tile.dart';
 
@@ -502,9 +500,17 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     setState(() {
       _isAddingNewItem = true;
       _newItemText = '';
+      _newItemEmoji = '🐶';
     });
     // Focus the text field after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_currentList.items.isNotEmpty) {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 300),
+          alignment: 1.0,
+        );
+      }
       _newItemFocusNode.requestFocus();
     });
   }
@@ -527,12 +533,15 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
       );
 
-      // Create a new list instance with the updated items
+      // Create a new list instance with the updated items (append to end)
       final updatedList = UserList(
         name: _currentList.name,
         icon: _currentList.icon,
         id: _currentList.id,
-        items: [..._currentList.items, newItem],
+        items: [
+          ..._currentList.items,
+          newItem
+        ], // Use spread operator to ensure proper order
         ownerId: _currentList.ownerId,
         shared: _currentList.shared,
         isArchived: _currentList.isArchived,
@@ -542,6 +551,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         hasUnsynchronizedChanges: true,
       );
 
+      // Update state in a single setState call
       setState(() {
         _currentList = updatedList;
         _isAddingNewItem = false;
@@ -574,11 +584,45 @@ class _ListDetailPageState extends State<_ListDetailPage> {
 
   Widget _buildReorderableItem(BuildContext context, int index) {
     if (index == _currentList.items.length) {
-      return AddItemTile(
-        key: ValueKey('add_item_tile'),
-        onTap: _addNewItem,
-        isWriteMode: widget.isWriteMode,
-      );
+      if (_isAddingNewItem) {
+        return Padding(
+          key: const ValueKey('new_item_input'),
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Row(
+            children: [
+              EmojiIcon(
+                emoji: _newItemEmoji,
+                size: 20,
+                editable: true,
+                onEmojiSelected: (newEmoji) {
+                  setState(() {
+                    _newItemEmoji = newEmoji;
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: EditableTextField(
+                  text: _newItemText,
+                  isEditable: true,
+                  autofocus: true,
+                  style: const TextStyle(fontSize: 16),
+                  onSubmitted: (value) {
+                    _newItemText = value;
+                    _submitNewItem();
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        return AddItemTile(
+          key: const ValueKey('add_item_tile'),
+          onTap: _addNewItem,
+          isWriteMode: widget.isWriteMode,
+        );
+      }
     }
     final item = _currentList.items[index];
     return ReorderableDragStartListener(
@@ -784,37 +828,6 @@ class _ListDetailPageState extends State<_ListDetailPage> {
             ],
           ),
           const SizedBox(height: 32),
-          if (_isAddingNewItem)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Row(
-                children: [
-                  EmojiIcon(
-                    emoji: _newItemEmoji,
-                    size: 20,
-                    editable: true,
-                    onEmojiSelected: (newEmoji) {
-                      setState(() {
-                        _newItemEmoji = newEmoji;
-                      });
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: EditableTextField(
-                      text: _newItemText,
-                      isEditable: true,
-                      autofocus: true,
-                      style: const TextStyle(fontSize: 16),
-                      onSubmitted: (value) {
-                        _newItemText = value;
-                        _submitNewItem();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
           Expanded(
             child: _currentList.items.isEmpty
                 ? Center(
