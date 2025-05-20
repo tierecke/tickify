@@ -671,7 +671,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
         leading: Checkbox(
           value: item.isDone,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-          onChanged: widget.isWriteMode
+          onChanged: !widget.isWriteMode
               ? (checked) async {
                   setState(() {
                     item.isDone = checked ?? false;
@@ -765,7 +765,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                 index: index,
                 child: const Icon(Icons.more_vert),
               )
-            : const Icon(Icons.more_vert),
+            : null,
       ),
     );
   }
