@@ -50,6 +50,7 @@ dependencies:
   equatable: ^2.0.5
   shared_preferences: 2.2.2
   emoji_picker_flutter: ^2.2.0
+  flutter_slidable: ^3.0.0
 
 dev_dependencies:
   flutter_test:

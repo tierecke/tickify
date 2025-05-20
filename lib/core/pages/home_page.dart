@@ -15,6 +15,7 @@ import '../widgets/editable_text_field.dart';
 import '../widgets/emoji_icon.dart';
 import '../widgets/add_item_tile.dart';
 import '../widgets/confirm_dialog.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 /// Main screen of the application with platform-adaptive navigation
 /// Renders differently on iOS and Android while maintaining consistent functionality
@@ -626,101 +627,75 @@ class _ListDetailPageState extends State<_ListDetailPage> {
       }
     }
     final item = _currentList.items[index];
-    return Dismissible(
+    return Slidable(
       key: ValueKey(item.id),
-      direction: widget.isWriteMode
-          ? DismissDirection.horizontal
-          : DismissDirection.startToEnd,
-      background: Container(
-        color: Colors.red[900],
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          children: [
-            const Icon(Icons.delete, color: Colors.white),
-            const SizedBox(width: 8),
-            const Text(
-              'Delete',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
+      enabled: widget.isWriteMode,
+      startActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.32,
+        children: [
+          SlidableAction(
+            onPressed: (context) async {
+              final result = await showDialog<bool>(
+                context: context,
+                builder: (context) => const ConfirmDialog(
+                  title: 'Delete Item',
+                  message: 'Are you sure you want to delete this item?',
+                  yesTitle: 'Delete',
+                  noTitle: 'Cancel',
+                ),
+              );
+              if (result == true) {
+                setState(() {
+                  _currentList.items.removeAt(index);
+                  _currentList.updateLastModified();
+                });
+                await _saveLocally();
+              }
+            },
+            backgroundColor: Colors.red[900]!,
+            foregroundColor: Colors.white,
+            icon: Icons.delete,
+            label: 'Delete',
+          ),
+        ],
       ),
-      secondaryBackground: widget.isWriteMode
-          ? Container(
-              color: showArchived ? Colors.blue[900] : Colors.blueGrey[900],
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Icon(
-                    showArchived ? Icons.unarchive : Icons.archive,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    showArchived ? 'Unarchive' : 'Archive',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
+      endActionPane: widget.isWriteMode
+          ? ActionPane(
+              motion: const DrawerMotion(),
+              extentRatio: 0.38,
+              children: [
+                SlidableAction(
+                  onPressed: (context) async {
+                    final result = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => ConfirmDialog(
+                        title: showArchived ? 'Unarchive Item' : 'Archive Item',
+                        message: showArchived
+                            ? 'Are you sure you want to unarchive this item?'
+                            : 'Are you sure you want to archive this item?',
+                        yesTitle: showArchived ? 'Unarchive' : 'Archive',
+                        noTitle: 'Cancel',
+                      ),
+                    );
+                    if (result == true) {
+                      setState(() {
+                        _currentList.items[index].isArchived = !showArchived;
+                        _currentList.updateLastModified();
+                        _currentList.items.removeAt(index);
+                      });
+                      await _saveLocally();
+                    }
+                  },
+                  backgroundColor:
+                      showArchived ? Colors.blue[900]! : Colors.blueGrey[900]!,
+                  foregroundColor: Colors.white,
+                  icon: showArchived ? Icons.unarchive : Icons.archive,
+                  label: showArchived ? 'Unarchive' : 'Archive',
+                ),
+              ],
             )
           : null,
-      confirmDismiss: (direction) async {
-        if (direction == DismissDirection.startToEnd) {
-          final result = await showDialog<bool>(
-            context: context,
-            builder: (context) => const ConfirmDialog(
-              title: 'Delete Item',
-              message: 'Are you sure you want to delete this item?',
-              yesTitle: 'Delete',
-              noTitle: 'Cancel',
-            ),
-          );
-          return result == true;
-        } else if (direction == DismissDirection.endToStart &&
-            widget.isWriteMode) {
-          final result = await showDialog<bool>(
-            context: context,
-            builder: (context) => ConfirmDialog(
-              title: showArchived ? 'Unarchive Item' : 'Archive Item',
-              message: showArchived
-                  ? 'Are you sure you want to unarchive this item?'
-                  : 'Are you sure you want to archive this item?',
-              yesTitle: showArchived ? 'Unarchive' : 'Archive',
-              noTitle: 'Cancel',
-            ),
-          );
-          return result == true;
-        }
-        return false;
-      },
-      onDismissed: (direction) async {
-        if (direction == DismissDirection.startToEnd) {
-          setState(() {
-            _currentList.items.removeAt(index);
-            _currentList.updateLastModified();
-          });
-          await _saveLocally();
-        } else if (direction == DismissDirection.endToStart &&
-            widget.isWriteMode) {
-          setState(() {
-            _currentList.items[index].isArchived = !showArchived;
-            _currentList.updateLastModified();
-            _currentList.items.removeAt(index);
-          });
-          await _saveLocally();
-        }
-      },
       child: ListTile(
         leading: Checkbox(
           value: item.isDone,
