@@ -14,6 +14,7 @@ import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../widgets/editable_text_field.dart';
 import '../widgets/emoji_icon.dart';
 import '../widgets/add_item_tile.dart';
+import '../widgets/confirm_dialog.dart';
 
 /// Main screen of the application with platform-adaptive navigation
 /// Renders differently on iOS and Android while maintaining consistent functionality
@@ -625,10 +626,47 @@ class _ListDetailPageState extends State<_ListDetailPage> {
       }
     }
     final item = _currentList.items[index];
-    return ReorderableDragStartListener(
+    return Dismissible(
       key: ValueKey(item.id),
-      index: index,
-      enabled: widget.isWriteMode,
+      direction: DismissDirection.startToEnd,
+      background: Container(
+        color: Colors.red[900],
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Row(
+          children: [
+            const Icon(Icons.delete, color: Colors.white),
+            const SizedBox(width: 8),
+            const Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        final result = await showDialog<bool>(
+          context: context,
+          builder: (context) => const ConfirmDialog(
+            title: 'Delete Item',
+            message: 'Are you sure you want to delete this item?',
+            yesTitle: 'Delete',
+            noTitle: 'Cancel',
+          ),
+        );
+        return result == true;
+      },
+      onDismissed: (direction) async {
+        setState(() {
+          _currentList.items.removeAt(index);
+          _currentList.updateLastModified();
+        });
+        await _saveLocally();
+      },
       child: ListTile(
         leading: Checkbox(
           value: item.isDone,
@@ -650,32 +688,32 @@ class _ListDetailPageState extends State<_ListDetailPage> {
               size: 20,
               editable: widget.isWriteMode,
               onEmojiSelected: (newEmoji) async {
+                final updatedItem = ListItem(
+                  name: item.name,
+                  icon: newEmoji,
+                  id: item.id,
+                  parentId: item.parentId,
+                  isDone: item.isDone,
+                  isArchived: item.isArchived,
+                  children: item.children,
+                  createdAt: item.createdAt,
+                );
+                final updatedList = UserList(
+                  name: _currentList.name,
+                  icon: _currentList.icon,
+                  id: _currentList.id,
+                  items: _currentList.items
+                      .map((i) => i.id == item.id ? updatedItem : i)
+                      .toList(),
+                  ownerId: _currentList.ownerId,
+                  shared: _currentList.shared,
+                  isArchived: _currentList.isArchived,
+                  createdAt: _currentList.createdAt,
+                  lastOpenedAt: _currentList.lastOpenedAt,
+                  lastModifiedAt: DateTime.now(),
+                  hasUnsynchronizedChanges: true,
+                );
                 setState(() {
-                  final updatedItem = ListItem(
-                    name: item.name,
-                    icon: newEmoji,
-                    id: item.id,
-                    parentId: item.parentId,
-                    isDone: item.isDone,
-                    isArchived: item.isArchived,
-                    children: item.children,
-                    createdAt: item.createdAt,
-                  );
-                  final updatedList = UserList(
-                    name: _currentList.name,
-                    icon: _currentList.icon,
-                    id: _currentList.id,
-                    items: _currentList.items
-                        .map((i) => i.id == item.id ? updatedItem : i)
-                        .toList(),
-                    ownerId: _currentList.ownerId,
-                    shared: _currentList.shared,
-                    isArchived: _currentList.isArchived,
-                    createdAt: _currentList.createdAt,
-                    lastOpenedAt: _currentList.lastOpenedAt,
-                    lastModifiedAt: DateTime.now(),
-                    hasUnsynchronizedChanges: true,
-                  );
                   _currentList = updatedList;
                 });
                 await _saveLocally();
@@ -722,7 +760,12 @@ class _ListDetailPageState extends State<_ListDetailPage> {
             ),
           ],
         ),
-        trailing: Icon(Icons.more_vert),
+        trailing: widget.isWriteMode
+            ? ReorderableDragStartListener(
+                index: index,
+                child: const Icon(Icons.more_vert),
+              )
+            : const Icon(Icons.more_vert),
       ),
     );
   }
