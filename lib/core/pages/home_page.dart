@@ -584,6 +584,28 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     );
   }
 
+  Future<void> _handleArchiveAction(int index) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => ConfirmDialog(
+        title: showArchived ? 'Unarchive Item' : 'Archive Item',
+        message: showArchived
+            ? 'Are you sure you want to unarchive this item?'
+            : 'Are you sure you want to archive this item?',
+        yesTitle: showArchived ? 'Unarchive' : 'Archive',
+        noTitle: 'Cancel',
+      ),
+    );
+    if (result == true) {
+      setState(() {
+        _currentList.items[index].isArchived =
+            !_currentList.items[index].isArchived;
+        _currentList.updateLastModified();
+      });
+      await _saveLocally();
+    }
+  }
+
   Widget _buildReorderableItem(BuildContext context, int index) {
     if (index == _currentList.items.length) {
       if (_isAddingNewItem) {
@@ -630,68 +652,43 @@ class _ListDetailPageState extends State<_ListDetailPage> {
     return Slidable(
       key: ValueKey(item.id),
       enabled: widget.isWriteMode,
-      startActionPane: ActionPane(
-        motion: const DrawerMotion(),
-        extentRatio: 0.32,
-        children: [
-          SlidableAction(
-            onPressed: (context) async {
-              final result = await showDialog<bool>(
-                context: context,
-                builder: (context) => const ConfirmDialog(
-                  title: 'Delete Item',
-                  message: 'Are you sure you want to delete this item?',
-                  yesTitle: 'Delete',
-                  noTitle: 'Cancel',
-                ),
-              );
-              if (result == true) {
-                setState(() {
-                  _currentList.items.removeAt(index);
-                  _currentList.updateLastModified();
-                });
-                await _saveLocally();
-              }
-            },
-            backgroundColor: Colors.red[900]!,
-            foregroundColor: Colors.white,
-            icon: Icons.delete,
-            label: 'Delete',
-          ),
-        ],
-      ),
       endActionPane: widget.isWriteMode
           ? ActionPane(
               motion: const DrawerMotion(),
-              extentRatio: 0.38,
+              extentRatio: 0.70,
               children: [
                 SlidableAction(
                   onPressed: (context) async {
                     final result = await showDialog<bool>(
                       context: context,
-                      builder: (context) => ConfirmDialog(
-                        title: showArchived ? 'Unarchive Item' : 'Archive Item',
-                        message: showArchived
-                            ? 'Are you sure you want to unarchive this item?'
-                            : 'Are you sure you want to archive this item?',
-                        yesTitle: showArchived ? 'Unarchive' : 'Archive',
+                      builder: (context) => const ConfirmDialog(
+                        title: 'Delete Item',
+                        message: 'Are you sure you want to delete this item?',
+                        yesTitle: 'Delete',
                         noTitle: 'Cancel',
                       ),
                     );
                     if (result == true) {
                       setState(() {
-                        _currentList.items[index].isArchived = !showArchived;
-                        _currentList.updateLastModified();
                         _currentList.items.removeAt(index);
+                        _currentList.updateLastModified();
                       });
                       await _saveLocally();
                     }
                   },
-                  backgroundColor:
-                      showArchived ? Colors.blue[900]! : Colors.blueGrey[900]!,
+                  backgroundColor: Colors.red[900]!,
                   foregroundColor: Colors.white,
-                  icon: showArchived ? Icons.unarchive : Icons.archive,
-                  label: showArchived ? 'Unarchive' : 'Archive',
+                  icon: Icons.delete,
+                  label: 'Delete',
+                ),
+                SlidableAction(
+                  onPressed: (context) => _handleArchiveAction(index),
+                  backgroundColor: item.isArchived
+                      ? Colors.blue[900]!
+                      : Colors.blueGrey[900]!,
+                  foregroundColor: Colors.white,
+                  icon: item.isArchived ? Icons.unarchive : Icons.archive,
+                  label: item.isArchived ? 'Unarchive' : 'Archive',
                 ),
               ],
             )
@@ -901,7 +898,10 @@ class _ListDetailPageState extends State<_ListDetailPage> {
           ),
           const SizedBox(height: 32),
           Expanded(
-            child: _currentList.items.isEmpty
+            child: _currentList.items.isEmpty ||
+                    (_currentList.items
+                        .where((item) => !item.isArchived || showArchived)
+                        .isEmpty)
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -931,15 +931,30 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                     ),
                   )
                 : ReorderableListView.builder(
-                    itemCount: _currentList.items.length +
-                        1, // Add 1 for the AddItemTile
+                    itemCount: _currentList.items
+                            .where((item) => !item.isArchived || showArchived)
+                            .length +
+                        1, // Always add the "Add Item" tile
                     onReorder: (oldIndex, newIndex) async {
-                      if (oldIndex == _currentList.items.length ||
-                          newIndex > _currentList.items.length) return;
+                      if (!widget.isWriteMode) return;
+                      final visibleItems = _currentList.items
+                          .where((item) => !item.isArchived || showArchived)
+                          .toList();
+
+                      if (oldIndex >= visibleItems.length ||
+                          newIndex > visibleItems.length) return;
+
                       setState(() {
                         if (newIndex > oldIndex) newIndex--;
-                        final item = _currentList.items.removeAt(oldIndex);
-                        _currentList.items.insert(newIndex, item);
+                        final item = visibleItems[oldIndex];
+                        final actualOldIndex = _currentList.items.indexOf(item);
+                        final actualNewIndex = newIndex == visibleItems.length
+                            ? _currentList.items.length
+                            : _currentList.items
+                                .indexOf(visibleItems[newIndex]);
+
+                        _currentList.items.removeAt(actualOldIndex);
+                        _currentList.items.insert(actualNewIndex, item);
                         _currentList.updateLastModified();
                       });
                       await _saveLocally();
@@ -948,7 +963,20 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                       }
                     },
                     buildDefaultDragHandles: false,
-                    itemBuilder: _buildReorderableItem,
+                    itemBuilder: (context, index) {
+                      final visibleItems = _currentList.items
+                          .where((item) => !item.isArchived || showArchived)
+                          .toList();
+
+                      if (index == visibleItems.length) {
+                        return _buildReorderableItem(
+                            context, _currentList.items.length);
+                      }
+
+                      final item = visibleItems[index];
+                      final actualIndex = _currentList.items.indexOf(item);
+                      return _buildReorderableItem(context, actualIndex);
+                    },
                   ),
           ),
         ],
