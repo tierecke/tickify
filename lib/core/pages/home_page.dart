@@ -16,6 +16,8 @@ import '../widgets/emoji_icon.dart';
 import '../widgets/add_item_tile.dart';
 import '../widgets/confirm_dialog.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Main screen of the application with platform-adaptive navigation
 /// Renders differently on iOS and Android while maintaining consistent functionality
@@ -30,6 +32,8 @@ class HomePageState extends State<HomePage> {
   bool isWriteMode = true;
   StreamSubscription<User?>? _authSubscription;
   UserList? recentList;
+  final _uuid = Uuid();
+  final String kActiveListIdKey = 'active_list_id';
 
   @override
   void initState() {
@@ -57,6 +61,10 @@ class HomePageState extends State<HomePage> {
       print(
           'Local list ${list.id} has unsynchronized changes: ${list.hasUnsynchronizedChanges}');
     }
+
+    // Try to load the active list id from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final activeListId = prefs.getString(kActiveListIdKey);
 
     if (user != null) {
       // If logged in, also load from Firestore but preserve local changes
@@ -106,14 +114,24 @@ class HomePageState extends State<HomePage> {
     }
 
     if (lists.isNotEmpty) {
-      // Sort lists by lastOpenedAt to find the most recent
-      lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+      // Try to find the active list by id
+      UserList? activeList;
+      if (activeListId != null) {
+        activeList = lists.firstWhere(
+          (l) => l.id == activeListId,
+          orElse: () => lists.first,
+        );
+      } else {
+        // Sort lists by lastOpenedAt to find the most recent
+        lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+        activeList = lists.first;
+      }
       if (mounted) {
         // Use Future.microtask to schedule the setState after the current build
         Future.microtask(() {
           if (mounted) {
             setState(() {
-              recentList = lists.first;
+              recentList = activeList;
               print(
                   'Selected recent list ${recentList!.id} with unsynchronized changes: ${recentList!.hasUnsynchronizedChanges}');
             });
@@ -241,9 +259,14 @@ class HomePageState extends State<HomePage> {
     }
   }
 
-  void _updateRecentList(UserList updatedList) {
+  Future<void> updateRecentList(UserList updatedList) async {
+    // Reload the list from storage to ensure the latest data
+    final localRepository = LocalRepository();
+    final reloaded = await localRepository.loadList(updatedList.id);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(kActiveListIdKey, updatedList.id);
     setState(() {
-      recentList = updatedList;
+      recentList = reloaded ?? updatedList;
     });
   }
 
@@ -271,14 +294,16 @@ class HomePageState extends State<HomePage> {
                 onCreateList: _handleCreateList,
               );
             }
-            if (recentList == null) {
+            UserList? selectedList = recentList;
+            if (selectedList == null) {
               // Find the most recently opened list
               lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+              selectedList = lists.first;
               // Use Future.microtask to schedule the setState after the current build
               Future.microtask(() {
                 if (mounted) {
                   setState(() {
-                    recentList = lists.first;
+                    recentList = selectedList;
                   });
                 }
               });
@@ -286,11 +311,12 @@ class HomePageState extends State<HomePage> {
               return const Center(child: CircularProgressIndicator());
             }
             return _ListDetailPage(
-              list: recentList!,
+              key: ValueKey(selectedList.createdAt.toIso8601String()),
+              list: selectedList,
               isWriteMode: isWriteMode,
               onToggleWriteMode: _handleModeToggle,
               showBackButton: false,
-              onListChanged: _updateRecentList,
+              onListChanged: updateRecentList,
             );
           },
         );
@@ -312,14 +338,16 @@ class HomePageState extends State<HomePage> {
               onCreateList: _handleCreateList,
             );
           }
-          if (recentList == null) {
+          UserList? selectedList = recentList;
+          if (selectedList == null) {
             // Find the most recently opened list
             lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+            selectedList = lists.first;
             // Use Future.microtask to schedule the setState after the current build
             Future.microtask(() {
               if (mounted) {
                 setState(() {
-                  recentList = lists.first;
+                  recentList = selectedList;
                 });
               }
             });
@@ -327,11 +355,12 @@ class HomePageState extends State<HomePage> {
             return const Center(child: CircularProgressIndicator());
           }
           return _ListDetailPage(
-            list: recentList!,
+            key: ValueKey(selectedList.createdAt.toIso8601String()),
+            list: selectedList,
             isWriteMode: isWriteMode,
             onToggleWriteMode: _handleModeToggle,
             showBackButton: false,
-            onListChanged: _updateRecentList,
+            onListChanged: updateRecentList,
           );
         },
       );
@@ -387,12 +416,13 @@ class _ListDetailPage extends StatefulWidget {
   final bool showBackButton;
   final void Function(UserList)? onListChanged;
   const _ListDetailPage({
+    Key? key,
     required this.list,
     required this.isWriteMode,
     required this.onToggleWriteMode,
     this.showBackButton = true,
     this.onListChanged,
-  });
+  }) : super(key: key);
 
   @override
   State<_ListDetailPage> createState() => _ListDetailPageState();
@@ -409,6 +439,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   String _newItemText = '';
   String _newItemEmoji = '🐶';
   bool _isSubmittingNewItem = false;
+  final uuid = Uuid();
 
   @override
   void initState() {
@@ -532,7 +563,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
       final newItem = ListItem(
         name: _newItemText.trim(),
         icon: _newItemEmoji,
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: uuid.v4(),
       );
 
       // Create a new list instance with the updated items (append to end)
@@ -898,10 +929,11 @@ class _ListDetailPageState extends State<_ListDetailPage> {
           ),
           const SizedBox(height: 32),
           Expanded(
-            child: _currentList.items.isEmpty ||
+            child: ((_currentList.items.isEmpty && !_isAddingNewItem) ||
                     (_currentList.items
-                        .where((item) => !item.isArchived || showArchived)
-                        .isEmpty)
+                            .where((item) => !item.isArchived || showArchived)
+                            .isEmpty &&
+                        !_isAddingNewItem))
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,

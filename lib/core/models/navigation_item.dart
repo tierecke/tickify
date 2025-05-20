@@ -3,6 +3,8 @@ import '../widgets/about_dialog.dart';
 import '../widgets/login_dialog.dart';
 import '../repositories/firebase_repository.dart';
 import '../pages/home_page.dart';
+import '../pages/manage_lists_page.dart';
+import '../models/user_list.dart';
 
 /// Model representing a navigation menu item with its associated icon and action
 class NavigationItem {
@@ -27,9 +29,20 @@ List<NavigationItem> getNavigationItems(BuildContext context) {
       title: 'New list',
       icon: Icons.add,
     ),
-    const NavigationItem(
+    NavigationItem(
       title: 'Manage',
       icon: Icons.list,
+      onTap: () async {
+        final result = await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ManageListsPage()),
+        );
+        if (result != null && context.mounted) {
+          final homePage = context.findAncestorStateOfType<HomePageState>();
+          if (homePage != null && result is UserList) {
+            homePage.updateRecentList(result);
+          }
+        }
+      },
     ),
     const NavigationItem(
       title: 'Backup / Restore',
