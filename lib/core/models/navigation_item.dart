@@ -5,6 +5,7 @@ import '../repositories/firebase_repository.dart';
 import '../pages/home_page.dart';
 import '../pages/manage_lists_page.dart';
 import '../models/user_list.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Model representing a navigation menu item with its associated icon and action
 class NavigationItem {
@@ -45,7 +46,14 @@ List<NavigationItem> getNavigationItems(BuildContext context) {
         if (result != null && context.mounted) {
           final homePage = context.findAncestorStateOfType<HomePageState>();
           if (homePage != null && result is UserList) {
-            homePage.updateRecentList(result);
+            homePage.setState(() {
+              homePage.recentList = result;
+            });
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(homePage.kActiveListIdKey, result.id);
+            if (homePage.mounted) {
+              homePage.setState(() {});
+            }
           }
         }
       },

@@ -57,10 +57,6 @@ class HomePageState extends State<HomePage> {
     // Always load from local storage first
     lists = await localRepository.loadLists();
     print('Loaded ${lists.length} lists from local storage');
-    for (var list in lists) {
-      print(
-          'Local list ${list.id} has unsynchronized changes: ${list.hasUnsynchronizedChanges}');
-    }
 
     // Try to load the active list id from SharedPreferences
     final prefs = await SharedPreferences.getInstance();
@@ -127,15 +123,8 @@ class HomePageState extends State<HomePage> {
         activeList = lists.first;
       }
       if (mounted) {
-        // Use Future.microtask to schedule the setState after the current build
-        Future.microtask(() {
-          if (mounted) {
-            setState(() {
-              recentList = activeList;
-              print(
-                  'Selected recent list ${recentList!.id} with unsynchronized changes: ${recentList!.hasUnsynchronizedChanges}');
-            });
-          }
+        setState(() {
+          recentList = activeList;
         });
       }
     }
@@ -260,14 +249,11 @@ class HomePageState extends State<HomePage> {
   }
 
   Future<void> updateRecentList(UserList updatedList) async {
-    // Reload the list from storage to ensure the latest data
-    final localRepository = LocalRepository();
-    final reloaded = await localRepository.loadList(updatedList.id);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(kActiveListIdKey, updatedList.id);
-    setState(() {
-      recentList = reloaded ?? updatedList;
-    });
+    if (mounted) {
+      setState(() {
+        recentList = updatedList;
+      });
+    }
   }
 
   @override
@@ -294,20 +280,29 @@ class HomePageState extends State<HomePage> {
                 onCreateList: handleCreateList,
               );
             }
+            // Use recentList if set, otherwise find the active list
             UserList? selectedList = recentList;
             if (selectedList == null) {
-              // Find the most recently opened list
-              lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
-              selectedList = lists.first;
-              // Use Future.microtask to schedule the setState after the current build
-              Future.microtask(() {
+              // Try to find the active list by id
+              SharedPreferences.getInstance().then((prefs) {
+                final activeListId = prefs.getString(kActiveListIdKey);
+                if (activeListId != null) {
+                  selectedList = lists.firstWhere(
+                    (l) => l.id == activeListId,
+                    orElse: () => lists.first,
+                  );
+                } else {
+                  // If no active list, use the most recent one
+                  lists
+                      .sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+                  selectedList = lists.first;
+                }
                 if (mounted) {
                   setState(() {
                     recentList = selectedList;
                   });
                 }
               });
-              // Show loading indicator while waiting for recentList to be set
               return const Center(child: CircularProgressIndicator());
             }
             return _ListDetailPage(
@@ -338,20 +333,28 @@ class HomePageState extends State<HomePage> {
               onCreateList: handleCreateList,
             );
           }
+          // Use recentList if set, otherwise find the active list
           UserList? selectedList = recentList;
           if (selectedList == null) {
-            // Find the most recently opened list
-            lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
-            selectedList = lists.first;
-            // Use Future.microtask to schedule the setState after the current build
-            Future.microtask(() {
+            // Try to find the active list by id
+            SharedPreferences.getInstance().then((prefs) {
+              final activeListId = prefs.getString(kActiveListIdKey);
+              if (activeListId != null) {
+                selectedList = lists.firstWhere(
+                  (l) => l.id == activeListId,
+                  orElse: () => lists.first,
+                );
+              } else {
+                // If no active list, use the most recent one
+                lists.sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+                selectedList = lists.first;
+              }
               if (mounted) {
                 setState(() {
                   recentList = selectedList;
                 });
               }
             });
-            // Show loading indicator while waiting for recentList to be set
             return const Center(child: CircularProgressIndicator());
           }
           return _ListDetailPage(

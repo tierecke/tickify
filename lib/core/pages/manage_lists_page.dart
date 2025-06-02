@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/user_list.dart';
+import '../models/list_item.dart';
 import '../repositories/local_repository.dart';
 import '../widgets/emoji_icon.dart';
 import '../widgets/empty_lists_state.dart';
@@ -8,6 +9,7 @@ import '../widgets/confirm_dialog.dart';
 import 'package:uuid/uuid.dart';
 import '../repositories/firebase_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../pages/home_page.dart';
 
 class ManageListsPage extends StatefulWidget {
   const ManageListsPage({Key? key}) : super(key: key);
@@ -82,8 +84,16 @@ class _ManageListsPageState extends State<ManageListsPage> {
       list.updateLastOpened();
     });
     await LocalRepository().saveAllLists(_lists);
+    // Save as active list in SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(kActiveListIdKey, list.id);
     if (mounted) {
-      Navigator.of(context).pop(list);
+      // Pop back to the homepage and force it to rebuild
+      Navigator.of(context).pop();
+      // Then push a new instance of the homepage
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const HomePage()),
+      );
     }
   }
 
