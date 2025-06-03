@@ -2,9 +2,11 @@
 
 class VersionData {
   static const String versionNumber = '0.1';
-  static const int buildNumber = 7;
+  static const int buildNumber = 8;
   static get appVersionString =>
       versionNumber + (buildNumber > 1 ? 'b$buildNumber' : '');
+
+  // v0.1b8 - Lists are wider, doesn't display + Add Item on read only mode, it stats on read-only mode.
 
   // static bool displayInDebugAnyway = true;
 

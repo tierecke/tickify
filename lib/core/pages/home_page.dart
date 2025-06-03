@@ -29,7 +29,9 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
-  bool isWriteMode = true;
+  static const bool kInitialWriteMode =
+      false; // Set to false for read-only mode
+  bool isWriteMode = kInitialWriteMode;
   StreamSubscription<User?>? _authSubscription;
   UserList? recentList;
   final _uuid = Uuid();
@@ -833,7 +835,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -930,7 +932,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                 ),
             ],
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 16),
           Expanded(
             child: ((_currentList.items.isEmpty && !_isAddingNewItem) ||
                     (_currentList.items
@@ -969,7 +971,9 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                     itemCount: _currentList.items
                             .where((item) => !item.isArchived || showArchived)
                             .length +
-                        1, // Always add the "Add Item" tile
+                        (widget.isWriteMode
+                            ? 1
+                            : 0), // Only add 1 for Add Item tile in write mode
                     onReorder: (oldIndex, newIndex) async {
                       if (!widget.isWriteMode) return;
                       final visibleItems = _currentList.items
@@ -1003,7 +1007,7 @@ class _ListDetailPageState extends State<_ListDetailPage> {
                           .where((item) => !item.isArchived || showArchived)
                           .toList();
 
-                      if (index == visibleItems.length) {
+                      if (index == visibleItems.length && widget.isWriteMode) {
                         return _buildReorderableItem(
                             context, _currentList.items.length);
                       }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../widgets/about_dialog.dart';
-import '../widgets/login_dialog.dart';
 import '../repositories/firebase_repository.dart';
 import '../pages/home_page.dart';
 import '../pages/manage_lists_page.dart';
